@@ -5,6 +5,12 @@ import sys
 from urllib.parse import quote_plus
 import webbrowser
 
+try:
+    from core.kira_api import consultar_kira
+except (ImportError, AttributeError):
+    def consultar_kira(pergunta: str):
+        return None
+
 # =========================
 # SOCIALIZAÇÃO / EVOLUÇÃO IA
 # =========================
@@ -961,7 +967,29 @@ def main():
 
         intencao = detectar_intencao(user, contexto)
         contexto["ultima_intencao"] = intencao
-        resposta = responder(user, contexto=contexto)
+
+        # Comando direto para consultar a KIRA:
+        # Exemplo: kira O que é inteligência artificial?
+        if user.lower().startswith("kira "):
+            pergunta_kira = user[5:].strip()
+            resposta = consultar_kira(pergunta_kira) or "Não consegui consultar a KIRA agora."
+        else:
+            # Primeiro tenta responder localmente
+            resposta = responder(user, contexto=contexto)
+
+            # Se a resposta local for fraca, chama a KIRA no Render
+            resposta_fraca = (
+                not resposta
+                or "modo básico" in resposta.lower()
+                or len(resposta.strip()) < 20
+                or intencao == "desconhecida"
+            )
+
+            if resposta_fraca:
+                resposta_kira = consultar_kira(user)
+
+                if resposta_kira:
+                    resposta = resposta_kira
 
         print("NOVA:", resposta)
         registrar_interacao_usuario(user, resposta)
