@@ -1,0 +1,49 @@
+{
+    "conversas": [
+        {
+            "tema": "eu estou bem | o que voce é | quem é voce",
+            "data": "2026-04-26T23:46:13.473305",
+            "mensagens": [
+                {
+                    "agente": "KIRA",
+                    "rodada": 1,
+                    "mensagem": "Sou sua assistente virtual"
+                },
+                {
+                    "agente": "NOVA",
+                    "rodada": 1,
+                    "mensagem": "Sou sua assistente virtual"
+                },
+                {
+                    "agente": "KIRA",
+                    "rodada": 2,
+                    "mensagem": "Sua mensagem ficou um pouco aberta para mim. Pode repetir como se estivesse falando comigo naturalmente?"
+                },
+                {
+                    "agente": "NOVA",
+                    "rodada": 2,
+                    "mensagem": "Sou sua assistente virtual"
+                }
+            ]
+        }
+    ],
+    "aprendizados": [
+        {
+            "tema": "eu estou bem | o que voce é | quem é voce",
+            "origem": "automatica",
+            "data": "2026-04-26T23:46:13.473739",
+            "aprendizado": "O que você quer pesquisar?"
+        }
+    ],
+    "melhorias_de_resposta": [
+        {
+            "tema": "eu estou bem | o que voce é | quem é voce",
+            "regra": "O que você quer pesquisar?",
+            "data": "2026-04-26T23:46:13.473745"
+        }
+    ],
+    "evolucao_automatica": {
+        "ativa": true,
+        "intervalo": 5
+    }
+}

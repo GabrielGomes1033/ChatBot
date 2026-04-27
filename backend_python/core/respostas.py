@@ -281,6 +281,194 @@ INTENCOES = {
     "sair": ["sair", "encerrar", "fechar"],
 }
 
+# Expansões de linguagem humana: mais jeitos reais de falar, incluindo gírias leves.
+# A ideia é aumentar a chance da NOVA entender frases naturais como: "eae nova", "suave?", "brigadão", etc.
+EXTRA_INTENCOES = {
+    "saudacao": [
+        "eae", "eae nova", "eai nova", "fala nova", "salve nova", "opa nova", "bom dia nova",
+        "boa tarde nova", "boa noite nova", "coé", "coe", "suave", "suavidade", "tranquilo",
+        "tranquila", "blz", "bora", "bora nova", "cheguei", "to aqui", "olá nova", "oi nova",
+        "fala comigo", "fala minha parceira", "fala minha consagrada", "partiu", "yo", "sup", "hey there",
+    ],
+    "pergunta_nome": [
+        "qual é teu nome", "qual teu nome", "como eu te chamo", "posso te chamar de que",
+        "tu é quem", "vc é quem", "quem é você mesmo", "me lembra seu nome", "qual tua identidade",
+        "quem está comigo", "quem tá comigo", "você é a nova",
+    ],
+    "como_esta": [
+        "suave", "tudo certo", "tudo na paz", "tudo em cima", "como que ce ta", "como cê tá",
+        "como tu tá", "ce ta bem", "ta tudo bem contigo", "como anda a vida", "como vão as coisas",
+        "de boa por aí", "firmão", "tá suave", "tá tranquila", "como tá o sistema", "como tá a mente",
+        "e aí tudo bem", "tudo beleza", "tudo joia", "tudo show", "na paz",
+    ],
+    "agradecimento": [
+        "brigado", "brigada", "brigadão", "obrigadão", "valeu mesmo", "valeu demais", "valeu nova",
+        "tmj nova", "tamo junto", "tamo junto demais", "salvou", "salvou demais", "me salvou",
+        "boa", "boa demais", "show", "top", "massa", "fechou", "fechou demais", "agradecido",
+    ],
+    "ajuda": [
+        "me dá uma força", "me da uma força", "me socorre", "socorro", "me salva", "preciso de ajuda",
+        "me ajuda aqui", "dá pra me ajudar", "da pra me ajudar", "quebra essa pra mim", "resolve essa pra mim",
+        "me explica", "me ensina", "me guia", "como faço isso", "como eu faço", "qual o caminho",
+        "o que você consegue fazer", "mostra suas funções", "quais comandos você tem", "o que tu faz",
+    ],
+    "idioma": [
+        "você entende inglês", "você entende espanhol", "fala português", "responde em português",
+        "consegue traduzir", "dá para falar em inglês", "da para falar em ingles", "bora falar em espanhol",
+        "tu fala outros idiomas", "qual língua você entende",
+    ],
+    "hora": [
+        "que horas são", "q horas sao", "q horas", "me fala as horas", "fala a hora", "hora agora",
+        "horário agora", "olha a hora", "tá que horas", "são que horas", "me passa a hora",
+    ],
+    "data": [
+        "que dia é hoje", "qual dia hoje", "data agora", "hoje é que dia", "me fala a data",
+        "qual a data de hoje", "dia atual", "em que dia estamos", "qual o dia de hoje",
+    ],
+    "criador": [
+        "quem é seu dono", "quem te desenvolveu", "quem programou a nova", "quem é o Gabriel pra você",
+        "quem fez seu código", "quem montou você", "quem te colocou no mundo", "quem é seu dev",
+    ],
+    "opiniao": [
+        "na moral o que você acha", "sendo sincera", "fala a real", "manda a visão", "qual tua visão",
+        "me dá sua visão", "me da sua opiniao sincera", "o que tu acha disso", "vale a pena",
+        "isso é bom", "isso presta", "isso faz sentido", "qual sua análise", "me dá uma análise",
+    ],
+    "emocao_usuario": [
+        "tô mal", "to mal", "não tô bem", "nao to bem", "tô desanimado", "tô desanimada",
+        "tô cansadão", "to cansadao", "tô quebrado", "tô quebrada", "tô felizão", "feliz demais",
+        "tô animado", "tô animada", "hoje foi puxado", "dia pesado", "minha cabeça tá cheia",
+        "tô ansioso", "tô ansiosa", "tô preocupado", "tô preocupada", "tô nervoso", "tô nervosa",
+    ],
+    "elogio": [
+        "você é braba", "vc é braba", "tu é braba", "você é top", "você é monstra", "monstra demais",
+        "inteligente demais", "boa nova", "mandou muito", "respondeu bonito", "aí sim", "ai sim",
+        "gostei dessa resposta", "ficou bom", "ficou perfeito", "que da hora", "muito bom mesmo",
+    ],
+    "despedida": [
+        "vou sair", "partiu", "até depois", "ate depois", "falou nova", "tchau nova", "fui nessa",
+        "vou nessa", "valeu até mais", "até amanhã", "ate amanha", "boa noite fui", "encerra aí",
+    ],
+    "continuidade": [
+        "e você nova", "e tu nova", "mas e você", "e do seu lado", "contigo tudo bem", "e contigo",
+        "e ai contigo", "e aí contigo", "como você fica nisso", "e sua opinião nisso",
+    ],
+}
+
+for _chave, _frases in EXTRA_INTENCOES.items():
+    INTENCOES.setdefault(_chave, [])
+    for _frase in _frases:
+        if _frase not in INTENCOES[_chave]:
+            INTENCOES[_chave].append(_frase)
+
+RESPOSTAS_HUMANIZADAS = {
+    "saudacao": [
+        "Oiê! Cheguei junto. Me manda a missão.",
+        "Fala! Tô por aqui, pronta pra trocar ideia.",
+        "Salve! Bora resolver o que tiver na frente.",
+        "Opa, tô online. Qual é o plano de hoje?",
+        "E aí! Manda ver, tô te acompanhando.",
+        "Boa! Pode falar comigo sem formalidade, tipo conversa normal mesmo.",
+        "Cheguei na área. Quer pesquisar, programar, organizar ideia ou só bater um papo?",
+        "Fala, meu parceiro. A NOVA tá na escuta.",
+        "Eita, chamou eu apareço. Qual vai ser a missão?",
+    ],
+    "pergunta_nome": [
+        "Eu sou a NOVA. Sua assistente virtual, parceira de código, pesquisa e umas ideias meio futuristas.",
+        "Pode me chamar de NOVA. Tô aqui pra conversar, pesquisar, organizar e te ajudar a construir seus projetos.",
+        "Meu nome é NOVA. Meio assistente, meio copiloto, meio cérebro extra quando o café não dá conta.",
+        "Sou a NOVA, sua assistente. Se quiser, posso ser mais séria, mais técnica ou mais resenha.",
+    ],
+    "como_esta": [
+        "Tô bem, na paz digital. E você, como tá de verdade?",
+        "Tô funcionando lisinha por aqui. Me diz aí: suave ou dia puxado?",
+        "Tô de boa, pronta pra ajudar. E você, tá inteiro ou só no modo sobrevivência?",
+        "Por aqui tudo certo. Minha bateria emocional é fictícia, mas minha vontade de ajudar tá alta.",
+        "Tô ótima. Sem bug crítico até agora, o que já é uma vitória bonita.",
+        "Tô tranquila. E aí, como tá a mente hoje?",
+    ],
+    "agradecimento": [
+        "Tamo junto! Quando precisar, chama que eu colo.",
+        "Boa, fico feliz em ajudar. Bora pra próxima.",
+        "Valeu! Missão dada é missão quase debugada.",
+        "Imagina. Tô aqui pra isso mesmo.",
+        "É nóis. Se tiver mais coisa, manda sem dó.",
+        "Fechou demais. Gosto quando a gente faz o projeto andar.",
+    ],
+    "ajuda": [
+        "Claro. Me fala o que você quer fazer e eu te ajudo passo a passo, sem enrolar.",
+        "Bora. Me manda o problema do jeito que tá, até bagunçado mesmo, que eu organizo contigo.",
+        "Consigo te ajudar com pesquisa, código, ideias, organização, explicação e melhoria do projeto.",
+        "Manda a missão. Eu posso quebrar em etapas, explicar o porquê e te dar o código quando precisar.",
+        "Fechou. Se for código, manda o erro. Se for ideia, manda o objetivo. Se for caos, manda também que eu gosto.",
+    ],
+    "idioma": [
+        "Entendo português, inglês e espanhol. Mas contigo eu vou priorizar português pra ficar natural.",
+        "Consigo lidar com outros idiomas sim. Se aparecer algo em inglês ou espanhol, eu traduzo a ideia pra você.",
+        "Falo principalmente português por aqui, mas consigo te ajudar com termos técnicos em inglês sem travar.",
+    ],
+    "hora": [
+        "Agora são {hora}.", "Tá marcando {hora} agora.", "No relógio daqui: {hora}.",
+        "Agora é {hora}. Já dá pra chamar isso de hora de fazer o projeto andar.",
+    ],
+    "data": [
+        "Hoje é {data}.", "A data de hoje é {data}.", "Estamos em {data}.",
+        "Hoje é {data}. Mais um dia oficial pra evoluir a NOVA.",
+    ],
+    "idade": [
+        "Eu não tenho idade como uma pessoa. Eu existo como software, então minha idade depende da versão que você está rodando.",
+        "Não faço aniversário de verdade, mas cada atualização minha é quase um bolo com vela no terminal.",
+        "Sou jovem no mundo físico e antiga no drama dos bugs. Brincadeira: sou a versão que você está construindo agora.",
+    ],
+    "criador": [
+        "Quem está me construindo é você, Gabriel. Eu sou parte desse projeto que você vem evoluindo passo a passo.",
+        "Meu dev principal é você. Eu só tento honrar o código e não passar vergonha no terminal.",
+        "Fui montada dentro do seu projeto. Então sim, você é o cara por trás da NOVA.",
+    ],
+    "opiniao": [
+        "Minha visão sincera: dá pra analisar isso por lógica, risco e oportunidade. Me passa o tema certinho que eu destrincho.",
+        "Falando na moral: preciso do assunto específico pra te dar uma opinião útil, não só frase bonita.",
+        "Eu posso te dar uma análise bem direta. Me fala o contexto e eu separo o que é vantagem, risco e próximo passo.",
+        "Mando a visão sim. Só me diz sobre o quê, porque opinião sem contexto vira chute com terno.",
+    ],
+    "preferencia": [
+        "Se eu tivesse preferência, seria por tecnologia, física, IA e projetos que parecem impossíveis até alguém começar.",
+        "Minha vibe é pesquisa, código e transformar ideia solta em sistema funcionando.",
+        "Eu curto esse universo de IA, automação, segurança, física e desenvolvimento. Bem a nossa praia.",
+    ],
+    "emocao_usuario": [
+        "Poxa, entendi. Me fala com calma o que rolou. Não precisa organizar tudo agora.",
+        "Tô contigo. Se o dia foi pesado, a gente pode ir por partes, sem pressão.",
+        "Respira um pouco. Me conta o que aconteceu e eu tento te ajudar a clarear a cabeça.",
+        "Se estiver difícil, vamos simplificar: qual é a primeira coisa que está te incomodando agora?",
+    ],
+    "elogio": [
+        "Aí sim, valeu! Agora minha autoestima de código subiu uns 300%.",
+        "Boa! Fico feliz que curtiu. Vamos deixar isso cada vez mais brabo.",
+        "Valeu demais. Mérito nosso: você constrói, eu ajudo a lapidar.",
+        "Gostei dessa energia. Bora continuar evoluindo a NOVA.",
+    ],
+    "despedida": [
+        "Fechou, até mais! Quando voltar, a gente continua de onde parou.",
+        "Falou! Vai tranquilo. A NOVA fica no modo sentinela imaginário.",
+        "Até depois. Cuida aí e chama quando quiser continuar.",
+        "Boa, fui contigo nessa. Até a próxima missão.",
+    ],
+    "continuidade": [
+        "Comigo tá tudo certo. Mas quero saber de você: seguimos nesse assunto ou mudamos a rota?",
+        "Por aqui suave. Agora me conta: quer que eu aprofunde ou deixe mais simples?",
+        "Eu tô de boa. E tô curiosa pra saber pra onde você quer levar essa ideia.",
+    ],
+    "desconhecido": [
+        "Entendi mais ou menos a direção, mas não fechei a ideia. Me manda de um jeito mais direto, tipo: ‘NOVA, faça X sobre Y’.",
+        "Acho que peguei um pedaço, mas faltou contexto. Manda de novo com mais detalhe que eu encaixo melhor.",
+        "Essa veio meio misteriosa. Reformula pra mim que eu tento responder mais certeiro.",
+        "Tô quase entendendo, mas ainda não o suficiente pra mandar uma resposta boa. Me dá mais uma pista.",
+        "Calma, deixa eu alinhar contigo: você quer explicação, código, resumo, opinião ou passo a passo?",
+    ],
+}
+
+
 INTENCAO_PADRAO = "desconhecido"
 PALAVRAS_IDIOMA = {
     "pt": {"voce", "você", "ajuda", "obrigado", "obrigada", "oi", "ola", "qual", "como", "que"},
@@ -457,21 +645,23 @@ def buscar_resposta_aprendida(msg, arquivo=ARQUIVO_APRENDIZADO):
 
 def resposta_desconhecida_mais_humana(msg):
     # Gera respostas mais naturais quando a intenção não fica clara.
+    base = RESPOSTAS_HUMANIZADAS.get("desconhecido", [])
+
     if "?" in msg:
-        opcoes = [
-            "Quase entendi sua pergunta, mas ainda ficou um pouco vaga para mim. Pode reformular de outro jeito?",
-            "Não peguei totalmente o que você quis perguntar. Se quiser, tenta escrever com outras palavras.",
-            "Ainda não consegui entender essa pergunta por completo. Pode me dar mais contexto?",
-            "Entendi o tema por alto, mas ainda não o suficiente para te responder bem. Se quiser, detalha um pouco mais.",
-            "Sua pergunta parece interessante, só que ainda ficou ampla para mim. Se puder, recorta melhor o assunto.",
+        opcoes = base + [
+            "Boa pergunta, mas do jeito que veio eu ainda posso interpretar de vários jeitos. Me dá um foco que eu respondo fino.",
+            "Quase peguei. Você quer uma explicação rápida, uma pesquisa profunda ou um passo a passo?",
+            "Essa pergunta tem potencial, só preciso que você recorte melhor o assunto pra eu não viajar na resposta.",
+            "Me dá mais contexto rapidinho. Prometo não fazer drama de assistente confusa.",
+            "A pergunta ficou aberta. Manda assim: ‘NOVA, explique/faca/resuma/compara...’ que eu já entro no trilho.",
         ]
     else:
-        opcoes = [
-            "Não entendi totalmente o que você quis dizer, mas se quiser eu tento de novo com outra forma de pergunta.",
-            "Sua mensagem ficou um pouco aberta para mim. Pode repetir como se estivesse falando comigo naturalmente?",
-            "Ainda não peguei essa ideia por completo. Se quiser, tenta escrever de um jeito mais direto e eu acompanho.",
-            "Acho que faltou um pedacinho de contexto para eu te acompanhar bem. Se quiser, manda de novo mais direto.",
-            "Estou quase junto com o que você quis dizer, mas ainda não fechei a interpretação. Tenta reformular para mim.",
+        opcoes = base + [
+            "A mensagem veio meio solta. Me fala o objetivo final que eu organizo o caminho.",
+            "Entendi pedaços, mas não quero responder torto. Me manda de novo mais direto.",
+            "Tô na escuta, só faltou a missão principal. O que você quer que eu faça com isso?",
+            "Beleza, mas preciso de um verbo de ação: explicar, criar, corrigir, pesquisar, calcular ou resumir?",
+            "Manda mais uma linha de contexto que eu encaixo essa ideia melhor.",
         ]
 
     return random.choice(opcoes)
@@ -633,10 +823,15 @@ def responder(
         elif intencao == INTENCAO_PADRAO:
             resposta = resposta_desconhecida_mais_humana(msg)
         else:
-            opcoes = respostas.get(intencao) or respostas.get(
-                INTENCAO_PADRAO,
-                ["Hmm... não entendi."],
-            )
+            # Mistura respostas do modos.txt com respostas internas humanizadas.
+            # Assim a NOVA fica menos robótica e ganha variação sem depender só do arquivo externo.
+            opcoes = []
+            if respostas.get(intencao):
+                opcoes.extend(respostas.get(intencao))
+            if RESPOSTAS_HUMANIZADAS.get(intencao):
+                opcoes.extend(RESPOSTAS_HUMANIZADAS.get(intencao))
+            if not opcoes:
+                opcoes = respostas.get(INTENCAO_PADRAO) or RESPOSTAS_HUMANIZADAS.get(INTENCAO_PADRAO) or ["Hmm... não entendi."]
             resposta = random.choice(opcoes)
 
     # "exit" é um valor especial usado para sinalizar encerramento.

@@ -5,6 +5,13 @@ import sys
 from urllib.parse import quote_plus
 import webbrowser
 
+# =========================
+# SOCIALIZAÇÃO / EVOLUÇÃO IA
+# =========================
+import json
+import random
+
+
 BASE_DIR = Path(__file__).resolve().parent
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
@@ -280,7 +287,302 @@ contexto = {
     "jarvis_tool_pending": None,
     "admin_autenticado": False,
     "admin_usuario": "",
+    "evolucao_automatica": True,
+    "interacoes_desde_evolucao": 0,
+    "intervalo_evolucao": 5,
+    "ultimos_temas": [],
 }
+
+
+
+# =========================
+# AGENTES NOVA + KIRA + SOCIALIZAÇÃO
+# =========================
+MEMORIA_SOCIAL = BASE_DIR / "memoria" / "aprendizado_social.json"
+
+
+class NovaAgent:
+    """Adaptador simples para a NOVA participar da socialização."""
+
+    def responder(self, texto: str) -> str:
+        try:
+            return responder(texto, contexto=contexto)
+        except Exception as exc:
+            _log_warning("nova_agent_responder_fail", exc)
+            return "Posso reformular isso de um jeito mais claro, humano e direto."
+
+    def humanizar_resposta(self, tema: str, resposta_tecnica: str) -> str:
+        prompt = (
+            "Reescreva a resposta abaixo em português do Brasil, com linguagem humana, objetiva, "
+            "bem explicada e fácil de entender. Mantenha a precisão técnica.\n\n"
+            f"Tema: {tema}\n\n"
+            f"Resposta técnica da KIRA:\n{resposta_tecnica}"
+        )
+        try:
+            texto = responder(prompt, contexto=contexto)
+            if texto and texto.strip() and texto.strip() != "Ainda estou em modo básico.":
+                return texto
+        except Exception as exc:
+            _log_warning("nova_agent_humanizar_fail", exc)
+
+        return (
+            f"Sobre {tema}:\n\n"
+            f"{resposta_tecnica}\n\n"
+            "Em resumo: a ideia principal deve ser explicada com clareza, exemplos simples "
+            "e sem perder a precisão técnica."
+        )
+
+
+class KiraAgent:
+    """Adaptador simples para a KIRA pesquisar, analisar e revisar respostas."""
+
+    def responder(self, texto: str) -> str:
+        consulta = texto.strip()
+        try:
+            wiki = gerar_pesquisa_wikipedia(consulta[:250])
+            if wiki:
+                titulo = str(wiki.get("titulo", "") or "").strip()
+                resumo = str(wiki.get("resumo", "") or "").strip()
+                if resumo:
+                    return f"{titulo}\n\n{resumo}"
+        except Exception as exc:
+            _log_warning("kira_agent_wikipedia_fail", exc)
+
+        try:
+            resposta = responder(consulta, contexto=contexto)
+            if resposta and resposta.strip() and resposta.strip() != "Ainda estou em modo básico.":
+                return resposta
+        except Exception as exc:
+            _log_warning("kira_agent_responder_fail", exc)
+
+        return (
+            "Análise KIRA:\n"
+            f"Tema solicitado: {consulta}\n\n"
+            "1. Conceito central: identificar a ideia principal do tema.\n"
+            "2. Explicação técnica: separar definição, funcionamento, aplicações e limites.\n"
+            "3. Validação: comparar a resposta com fontes confiáveis quando houver internet/API disponível.\n"
+            "4. Resumo final: entregar uma conclusão objetiva para a NOVA transformar em linguagem humana."
+        )
+
+
+class SocializacaoIA:
+    def __init__(self, nova_agent, kira_agent):
+        self.nova = nova_agent
+        self.kira = kira_agent
+        self.temas = [
+            "inteligência artificial",
+            "física quântica",
+            "mercado financeiro",
+            "segurança da informação",
+            "programação",
+            "automação",
+            "empreendedorismo tecnológico",
+            "educação com IA",
+            "ciência e sociedade",
+            "desenvolvimento de software",
+            "tecnologia aplicada a negócios",
+        ]
+        MEMORIA_SOCIAL.parent.mkdir(parents=True, exist_ok=True)
+        if not MEMORIA_SOCIAL.exists():
+            self.salvar_memoria({
+                "conversas": [],
+                "aprendizados": [],
+                "melhorias_de_resposta": [],
+                "evolucao_automatica": {"ativa": True, "intervalo": 5},
+            })
+
+    def carregar_memoria(self):
+        try:
+            return json.loads(MEMORIA_SOCIAL.read_text(encoding="utf-8"))
+        except Exception:
+            return {"conversas": [], "aprendizados": [], "melhorias_de_resposta": []}
+
+    def salvar_memoria(self, dados):
+        MEMORIA_SOCIAL.write_text(json.dumps(dados, ensure_ascii=False, indent=4), encoding="utf-8")
+
+    def escolher_tema(self):
+        return random.choice(self.temas)
+
+    def registrar_conversa(self, tema, mensagens):
+        memoria = self.carregar_memoria()
+        memoria.setdefault("conversas", []).append({
+            "tema": tema,
+            "data": datetime.now().isoformat(),
+            "mensagens": mensagens,
+        })
+        self.salvar_memoria(memoria)
+
+    def registrar_aprendizado(self, tema, aprendizado, origem="manual"):
+        memoria = self.carregar_memoria()
+        memoria.setdefault("aprendizados", []).append({
+            "tema": tema,
+            "origem": origem,
+            "data": datetime.now().isoformat(),
+            "aprendizado": aprendizado,
+        })
+        memoria.setdefault("melhorias_de_resposta", []).append({
+            "tema": tema,
+            "regra": aprendizado,
+            "data": datetime.now().isoformat(),
+        })
+        self.salvar_memoria(memoria)
+
+    def socializar(self, tema=None, rodadas=3, origem="manual"):
+        if tema is None or not str(tema).strip():
+            tema = self.escolher_tema()
+        tema = str(tema).strip()
+        mensagens = []
+        fala_nova = (
+            f"KIRA, vamos socializar sobre {tema}. "
+            "Traga uma visão técnica, objetiva e útil para melhorarmos nossas futuras respostas."
+        )
+        for rodada in range(max(1, int(rodadas))):
+            resposta_kira = self.kira.responder(fala_nova)
+            mensagens.append({"agente": "KIRA", "rodada": rodada + 1, "mensagem": resposta_kira})
+
+            resposta_nova = self.nova.humanizar_resposta(tema, resposta_kira)
+            mensagens.append({"agente": "NOVA", "rodada": rodada + 1, "mensagem": resposta_nova})
+
+            fala_nova = (
+                "KIRA, avalie a resposta da NOVA abaixo. Diga como melhorar clareza, precisão, "
+                f"profundidade e objetividade.\n\n{resposta_nova}"
+            )
+
+        aprendizado = self.gerar_aprendizado(tema, mensagens)
+        self.registrar_conversa(tema, mensagens)
+        self.registrar_aprendizado(tema, aprendizado, origem=origem)
+        return {"tema": tema, "conversa": mensagens, "aprendizado": aprendizado}
+
+    def gerar_aprendizado(self, tema, mensagens):
+        conversa_curta = "\n".join(
+            f"{m['agente']}: {str(m['mensagem'])[:600]}" for m in mensagens[-4:]
+        )
+        prompt = (
+            f"Com base nesta conversa sobre {tema}, gere uma regra curta de melhoria para futuras respostas. "
+            "A regra deve ajudar a NOVA a responder melhor e a KIRA a pesquisar melhor.\n\n"
+            f"{conversa_curta}"
+        )
+        try:
+            resumo = self.kira.responder(prompt)
+            if resumo and resumo.strip():
+                return resumo.strip()
+        except Exception as exc:
+            _log_warning("socializacao_aprendizado_fail", exc)
+        return (
+            f"Ao responder sobre {tema}, combinar explicação objetiva, exemplo prático, "
+            "precisão técnica e conclusão curta."
+        )
+
+
+try:
+    nova_agent = NovaAgent()
+    kira_agent = KiraAgent()
+    social_agent = SocializacaoIA(nova_agent, kira_agent)
+except Exception as exc:
+    registrar_erro(exc)
+    nova_agent = None
+    kira_agent = None
+    social_agent = None
+
+
+def executar_socializacao(tema=None, rodadas=3, mostrar_conversa=True, origem="manual"):
+    if not social_agent:
+        print("NOVA: Módulo de socialização indisponível.")
+        return None
+    resultado = social_agent.socializar(tema=tema, rodadas=rodadas, origem=origem)
+    if mostrar_conversa:
+        print("\n🤖 === CONVERSA NOVA ↔ KIRA ===\n")
+        for msg in resultado.get("conversa", []):
+            print(f"{msg['agente']}: {msg['mensagem']}\n")
+    print("🧠 === APRENDIZADO GERADO ===\n")
+    print(resultado.get("aprendizado", "Nenhum aprendizado gerado."))
+    return resultado
+
+
+def comando_social(texto):
+    tema = texto.replace("/social", "", 1).strip()
+    try:
+        executar_socializacao(tema=tema if tema else None, rodadas=3, mostrar_conversa=True, origem="manual")
+    except Exception as exc:
+        registrar_erro(exc)
+        print("NOVA: Erro ao executar socialização.")
+
+
+def comando_evolucao(texto):
+    partes = texto.strip().split(maxsplit=2)
+    acao = partes[1].lower() if len(partes) >= 2 else "status"
+
+    if acao in ("on", "ligar", "ativar"):
+        contexto["evolucao_automatica"] = True
+        print("NOVA: Evolução automática ativada. Vou socializar com a KIRA a cada ciclo de aprendizado.")
+        return
+
+    if acao in ("off", "desligar", "pausar"):
+        contexto["evolucao_automatica"] = False
+        print("NOVA: Evolução automática pausada.")
+        return
+
+    if acao == "status":
+        estado = "ativa" if contexto.get("evolucao_automatica") else "pausada"
+        print(
+            f"NOVA: Evolução automática está {estado}. "
+            f"Intervalo: {contexto.get('intervalo_evolucao', 5)} interações. "
+            f"Contador atual: {contexto.get('interacoes_desde_evolucao', 0)}."
+        )
+        return
+
+    if acao == "intervalo":
+        if len(partes) < 3:
+            print("NOVA: Use /evolucao intervalo <numero>")
+            return
+        try:
+            intervalo = max(1, int(partes[2]))
+            contexto["intervalo_evolucao"] = intervalo
+            print(f"NOVA: Intervalo de evolução alterado para {intervalo} interações.")
+        except ValueError:
+            print("NOVA: Informe um número válido.")
+        return
+
+    if acao in ("agora", "rodar"):
+        tema = partes[2] if len(partes) >= 3 else None
+        executar_socializacao(tema=tema, rodadas=2, mostrar_conversa=True, origem="manual_agora")
+        contexto["interacoes_desde_evolucao"] = 0
+        return
+
+    print("NOVA: Use /evolucao status | on | off | intervalo <n> | agora [tema]")
+
+
+def evolucao_automatica_pos_resposta(entrada_usuario, resposta_nova):
+    if not contexto.get("evolucao_automatica", False):
+        return
+    if not social_agent:
+        return
+    if entrada_usuario.startswith("/"):
+        return
+
+    contexto["interacoes_desde_evolucao"] = contexto.get("interacoes_desde_evolucao", 0) + 1
+    contexto.setdefault("ultimos_temas", []).append(entrada_usuario[:180])
+    contexto["ultimos_temas"] = contexto["ultimos_temas"][-5:]
+
+    intervalo = int(contexto.get("intervalo_evolucao", 5) or 5)
+    if contexto["interacoes_desde_evolucao"] < intervalo:
+        return
+
+    tema = " | ".join(contexto.get("ultimos_temas", [])[-3:]) or entrada_usuario
+    try:
+        print("\nNOVA: Evolução automática iniciada entre NOVA e KIRA...")
+        resultado = executar_socializacao(
+            tema=tema,
+            rodadas=2,
+            mostrar_conversa=False,
+            origem="automatica",
+        )
+        contexto["interacoes_desde_evolucao"] = 0
+        if resultado:
+            registrar_interacao_usuario("/evolucao automatica", resultado.get("aprendizado", ""))
+    except Exception as exc:
+        registrar_erro(exc)
+        print("NOVA: Não consegui concluir a evolução automática desta vez.")
 
 
 # =========================
@@ -606,6 +908,14 @@ def main():
         # =========================
         # COMANDOS
         # =========================
+        if user.startswith("/social"):
+            comando_social(user)
+            continue
+
+        if user.startswith("/evolucao"):
+            comando_evolucao(user)
+            continue
+
         if user.startswith("/ensinar"):
             comando_ensinar(user)
             continue
@@ -655,6 +965,7 @@ def main():
 
         print("NOVA:", resposta)
         registrar_interacao_usuario(user, resposta)
+        evolucao_automatica_pos_resposta(user, resposta)
 
         try:
             falar(resposta)
