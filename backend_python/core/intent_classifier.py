@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 import re
 from typing import Any
 
+from core.assistente_plus import deve_acionar_pesquisa_web, extrair_consulta_pesquisa_web
 from core.google_calendar import looks_like_calendar_request
 
 
@@ -236,6 +237,11 @@ def classify_intent(text: str) -> IntentDecision:
         token in lowered for token in ("ultimas", "ultimos", "recentes", "noticias", "informacoes")
     ):
         query = _extract_search_query(msg)
+        if query:
+            return IntentDecision(type="tool_call", tool_name="search_web", params={"query": query})
+
+    if deve_acionar_pesquisa_web(msg):
+        query = extrair_consulta_pesquisa_web(msg) or _extract_search_query(msg)
         if query:
             return IntentDecision(type="tool_call", tool_name="search_web", params={"query": query})
 

@@ -2213,6 +2213,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final image = (report['image'] is Map)
           ? Map<String, dynamic>.from(report['image'] as Map)
           : <String, dynamic>{};
+      final detectedLabels = (report['detected_labels'] is List)
+          ? (report['detected_labels'] as List)
+          : const [];
       final analysisType = report['analysis_type']?.toString() ?? 'document';
       final source = report['source']?.toString() ?? 'arquivo';
 
@@ -2228,11 +2231,28 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         '- Páginas estimadas: ${stats['estimated_pages'] ?? 0}',
       ];
       if (image.isNotEmpty) {
-        lines.add('- Resolução: ${image['width'] ?? 0}x${image['height'] ?? 0} px');
+        lines.add(
+            '- Resolução: ${image['width'] ?? 0}x${image['height'] ?? 0} px');
         lines.add('- Orientação: ${image['orientation'] ?? '-'}');
         lines.add('- Formato: ${image['format'] ?? image['extension'] ?? '-'}');
         if ((image['brightness_label']?.toString() ?? '').isNotEmpty) {
           lines.add('- Iluminação estimada: ${image['brightness_label']}');
+        }
+      }
+      if (detectedLabels.isNotEmpty) {
+        final labels = detectedLabels
+            .whereType<Map>()
+            .map((item) {
+              final label = item['label']?.toString().trim() ?? '';
+              final confidence = item['confidence']?.toString().trim() ?? '';
+              if (label.isEmpty) return '';
+              return confidence.isEmpty ? label : '$label ($confidence)';
+            })
+            .where((item) => item.isNotEmpty)
+            .take(6)
+            .join(', ');
+        if (labels.isNotEmpty) {
+          lines.add('- Objetos detectados: $labels');
         }
       }
       lines.addAll([
@@ -2293,6 +2313,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 bytes: selectedBytes!,
                 filePath: selectedPath,
                 fromCamera: selectedFromCamera,
+                researchExecutor: ({
+                  required String fileName,
+                  required String recognizedText,
+                  required List<Map<String, dynamic>> labels,
+                  required Map<String, dynamic> metadata,
+                  required bool fromCamera,
+                  required int byteSize,
+                }) {
+                  return _api.analyzeImageInsights(
+                    fileName: fileName,
+                    recognizedText: recognizedText,
+                    labels: labels,
+                    metadata: metadata,
+                    fromCamera: fromCamera,
+                    byteSize: byteSize,
+                  );
+                },
               )
             : await _api.analyzeDocument(
                 fileName: selectedName,
@@ -2411,7 +2448,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         await analisarSelecionado(setLocalState);
       } catch (e) {
         setLocalState(() {
-          error = 'Não consegui abrir a galeria agora: ${e.toString().replaceFirst('Exception: ', '')}';
+          error =
+              'Não consegui abrir a galeria agora: ${e.toString().replaceFirst('Exception: ', '')}';
         });
       }
     }
@@ -2438,7 +2476,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         await analisarSelecionado(setLocalState);
       } catch (e) {
         setLocalState(() {
-          error = 'Não consegui capturar a foto agora: ${e.toString().replaceFirst('Exception: ', '')}';
+          error =
+              'Não consegui capturar a foto agora: ${e.toString().replaceFirst('Exception: ', '')}';
         });
       }
     }

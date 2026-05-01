@@ -30,6 +30,7 @@ from core.assistente_plus import (
 )
 from core.autonomia_runtime import solicitar_execucao_autonoma
 from core.document_analysis import analisar_documento_base64
+from core.image_research import analisar_imagem_contextualizada
 from core.help_center import ajuda_topicos
 from core.jarvis_chat_bridge import jarvis_status_snapshot
 from core.memoria import carregar_memoria_usuario, salvar_memoria_usuario
@@ -255,6 +256,28 @@ if APIRouter is not None:
         filename = str(body.get("filename", "")).strip()
         content_b64 = str(body.get("content_base64", "")).strip()
         out = analisar_documento_base64(filename, content_b64, auto_learn=False)
+        status_code = 200 if out.get("ok") else 400
+        return _json(out, status_code=status_code)
+
+    @router.post("/images/inspect")
+    def images_inspect(body: dict):
+        filename = str(body.get("filename", "")).strip()
+        recognized_text = str(body.get("recognized_text", "")).strip()
+        metadata = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+        labels = body.get("labels") if isinstance(body.get("labels"), list) else []
+        from_camera = bool(body.get("from_camera", False))
+        try:
+            byte_size = int(body.get("byte_size", 0) or 0)
+        except Exception:
+            byte_size = 0
+        out = analisar_imagem_contextualizada(
+            filename=filename,
+            metadata=metadata,
+            recognized_text=recognized_text,
+            labels=labels,
+            from_camera=from_camera,
+            byte_size=byte_size,
+        )
         status_code = 200 if out.get("ok") else 400
         return _json(out, status_code=status_code)
 

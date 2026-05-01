@@ -8,8 +8,10 @@ import webbrowser
 try:
     from core.kira_api import consultar_kira
 except (ImportError, AttributeError):
+
     def consultar_kira(pergunta: str):
         return None
+
 
 # =========================
 # SOCIALIZAÇÃO / EVOLUÇÃO IA
@@ -300,7 +302,6 @@ contexto = {
 }
 
 
-
 # =========================
 # AGENTES NOVA + KIRA + SOCIALIZAÇÃO
 # =========================
@@ -390,12 +391,14 @@ class SocializacaoIA:
         ]
         MEMORIA_SOCIAL.parent.mkdir(parents=True, exist_ok=True)
         if not MEMORIA_SOCIAL.exists():
-            self.salvar_memoria({
-                "conversas": [],
-                "aprendizados": [],
-                "melhorias_de_resposta": [],
-                "evolucao_automatica": {"ativa": True, "intervalo": 5},
-            })
+            self.salvar_memoria(
+                {
+                    "conversas": [],
+                    "aprendizados": [],
+                    "melhorias_de_resposta": [],
+                    "evolucao_automatica": {"ativa": True, "intervalo": 5},
+                }
+            )
 
     def carregar_memoria(self):
         try:
@@ -411,26 +414,32 @@ class SocializacaoIA:
 
     def registrar_conversa(self, tema, mensagens):
         memoria = self.carregar_memoria()
-        memoria.setdefault("conversas", []).append({
-            "tema": tema,
-            "data": datetime.now().isoformat(),
-            "mensagens": mensagens,
-        })
+        memoria.setdefault("conversas", []).append(
+            {
+                "tema": tema,
+                "data": datetime.now().isoformat(),
+                "mensagens": mensagens,
+            }
+        )
         self.salvar_memoria(memoria)
 
     def registrar_aprendizado(self, tema, aprendizado, origem="manual"):
         memoria = self.carregar_memoria()
-        memoria.setdefault("aprendizados", []).append({
-            "tema": tema,
-            "origem": origem,
-            "data": datetime.now().isoformat(),
-            "aprendizado": aprendizado,
-        })
-        memoria.setdefault("melhorias_de_resposta", []).append({
-            "tema": tema,
-            "regra": aprendizado,
-            "data": datetime.now().isoformat(),
-        })
+        memoria.setdefault("aprendizados", []).append(
+            {
+                "tema": tema,
+                "origem": origem,
+                "data": datetime.now().isoformat(),
+                "aprendizado": aprendizado,
+            }
+        )
+        memoria.setdefault("melhorias_de_resposta", []).append(
+            {
+                "tema": tema,
+                "regra": aprendizado,
+                "data": datetime.now().isoformat(),
+            }
+        )
         self.salvar_memoria(memoria)
 
     def socializar(self, tema=None, rodadas=3, origem="manual"):
@@ -508,7 +517,9 @@ def executar_socializacao(tema=None, rodadas=3, mostrar_conversa=True, origem="m
 def comando_social(texto):
     tema = texto.replace("/social", "", 1).strip()
     try:
-        executar_socializacao(tema=tema if tema else None, rodadas=3, mostrar_conversa=True, origem="manual")
+        executar_socializacao(
+            tema=tema if tema else None, rodadas=3, mostrar_conversa=True, origem="manual"
+        )
     except Exception as exc:
         registrar_erro(exc)
         print("NOVA: Erro ao executar socialização.")
@@ -520,7 +531,9 @@ def comando_evolucao(texto):
 
     if acao in ("on", "ligar", "ativar"):
         contexto["evolucao_automatica"] = True
-        print("NOVA: Evolução automática ativada. Vou socializar com a KIRA a cada ciclo de aprendizado.")
+        print(
+            "NOVA: Evolução automática ativada. Vou socializar com a KIRA a cada ciclo de aprendizado."
+        )
         return
 
     if acao in ("off", "desligar", "pausar"):

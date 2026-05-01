@@ -70,7 +70,7 @@ class SearchTranslationTests(unittest.TestCase):
                     "pesquise sobre carros eletricos",
                 )
 
-            self.assertIn("Pesquisei", pesquisa["reply"])
+            self.assertIn("Electric cars reduce emissions", pesquisa["reply"])
             self.assertIn("Responda sim ou nao", pesquisa["reply"])
 
             with patch(
@@ -121,10 +121,12 @@ class SearchTranslationTests(unittest.TestCase):
                     "pesquise sobre machine learning",
                 )
 
-            self.assertIn("Pesquisei sobre machine learning", pesquisa["reply"])
-            self.assertIn("Explicacao direta", pesquisa["reply"])
+            self.assertIn(
+                "Machine learning permite que sistemas aprendam a partir de dados.",
+                pesquisa["reply"],
+            )
             self.assertIn("Pontos principais", pesquisa["reply"])
-            self.assertIn("Fontes consultadas", pesquisa["reply"])
+            self.assertNotIn("Fontes consultadas", pesquisa["reply"])
             memory.close()
 
     def test_search_reply_can_offer_translation_confirmation(self) -> None:

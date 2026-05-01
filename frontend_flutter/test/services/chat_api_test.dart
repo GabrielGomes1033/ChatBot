@@ -6,7 +6,8 @@ import 'package:frontend_flutter/services/chat_api.dart';
 import 'package:http/http.dart' as http;
 
 void main() {
-  test('envia cabecalhos de autenticacao quando token da API esta configurado', () async {
+  test('envia cabecalhos de autenticacao quando token da API esta configurado',
+      () async {
     Map<String, String>? capturedHeaders;
 
     final service = ChatApiService(
@@ -123,5 +124,50 @@ void main() {
       'http://127.0.0.1:8000/documents/analyze',
       'http://127.0.0.1:8000/documents/inspect',
     ]);
+  });
+
+  test('analyzeImageInsights envia payload estruturado para o backend',
+      () async {
+    late Map<String, dynamic> body;
+
+    final service = ChatApiService(
+      baseUrl: 'http://127.0.0.1:8000',
+      httpExecutor: (
+        String method,
+        Uri uri, {
+        required Map<String, String> headers,
+        String? encodedBody,
+      }) async {
+        expect(method, 'POST');
+        expect(uri.toString(), 'http://127.0.0.1:8000/images/inspect');
+        body = jsonDecode(encodedBody!) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({
+            'ok': true,
+            'report': {'executive_summary': 'Resumo remoto de imagem.'},
+          }),
+          200,
+        );
+      },
+    );
+
+    final payload = await service.analyzeImageInsights(
+      fileName: 'foto.jpg',
+      recognizedText: 'Museu do Ipiranga',
+      labels: const [
+        {'label': 'Museum', 'confidence': 0.93},
+      ],
+      metadata: const {'width': 1080, 'height': 720},
+      fromCamera: true,
+      byteSize: 2048,
+    );
+
+    expect(payload['ok'], isTrue);
+    expect(body['filename'], 'foto.jpg');
+    expect(body['recognized_text'], 'Museu do Ipiranga');
+    expect(body['labels'], isNotEmpty);
+    expect(body['metadata']['width'], 1080);
+    expect(body['from_camera'], isTrue);
+    expect(body['byte_size'], 2048);
   });
 }

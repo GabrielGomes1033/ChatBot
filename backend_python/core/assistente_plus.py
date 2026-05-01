@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from html import unescape
-from pathlib import Path
 import ast
 import math
 import os
@@ -122,6 +121,31 @@ def _resumir_texto(texto: str, limite: int = 220) -> str:
         return t
     recorte = t[: max(40, limite)].rsplit(" ", 1)[0].strip()
     return (recorte or t[:limite]).rstrip(" ,.;:-") + "..."
+
+
+def _limpar_resumo_para_chat(texto: str) -> str:
+    body = str(texto or "").strip()
+    if not body:
+        return ""
+    body = re.sub(r"[ \t]+", " ", body)
+    body = re.sub(
+        r"(?im)^(?:resumo direto|explicacao direta|explicação direta|visao geral|visão geral):\s*",
+        "",
+        body,
+    )
+    body = re.sub(
+        r"(?is)\n*fontes consultadas:\s*.*$",
+        "",
+        body,
+    )
+    body = re.sub(
+        r"(?is)\n*se quiser se aprofundar:\s*.*$",
+        "",
+        body,
+    )
+    body = re.sub(r"\s+\((?:[a-z0-9-]+\.)+[a-z]{2,}\)", "", body, flags=re.IGNORECASE)
+    body = re.sub(r"\n{3,}", "\n\n", body)
+    return body.strip()
 
 
 def _normalizar_ascii(texto: str) -> str:
@@ -1244,34 +1268,58 @@ def pesquisar_na_internet(consulta: str) -> dict:
     }
 
 
-def formatar_resposta_pesquisa(resultado: dict, max_fontes: int = 6, max_links: int = 3) -> str:
+def formatar_resposta_pesquisa(
+    resultado: dict,
+    max_fontes: int = 6,
+    max_links: int = 3,
+    *,
+    incluir_fontes: bool = False,
+    incluir_links: bool = False,
+) -> str:
     if not isinstance(resultado, dict):
         return "Não consegui organizar a resposta da pesquisa agora."
 
     consulta = _limpar(str(resultado.get("consulta") or resultado.get("query") or ""))
+    if resultado.get("ambiguous") and isinstance(resultado.get("options"), list):
+        opcoes = []
+        for item in resultado.get("options", [])[:4]:
+            if not isinstance(item, dict):
+                continue
+            titulo = _resumir_texto(str(item.get("title", "")).strip(), limite=80)
+            descricao = _resumir_texto(str(item.get("description", "")).strip(), limite=170)
+            if titulo and descricao and descricao.lower().startswith(titulo.lower()):
+                linha = descricao
+            elif titulo and descricao:
+                linha = f"{titulo} — {descricao}"
+            else:
+                linha = titulo or descricao
+            linha = _limpar(linha)
+            if linha:
+                opcoes.append(linha)
+        if opcoes:
+            cabecalho = (
+                f'"{consulta}" pode significar coisas diferentes.'
+                if consulta
+                else ("Esse termo pode significar coisas diferentes.")
+            )
+            corpo = "\n".join(f"{idx}. {linha}" for idx, linha in enumerate(opcoes, start=1))
+            fechamento = "Me diz qual deles você quer que eu aprofunde."
+            return f"{cabecalho}\n{corpo}\n{fechamento}".strip()
+
     resumo = str(resultado.get("resumo") or resultado.get("summary") or "").strip()
     if not resumo:
         return "Não consegui encontrar um resumo agora."
 
-    if consulta:
-        abertura = f"Pesquisei sobre {consulta} e organizei a explicação de forma clara:"
-    else:
-        abertura = "Pesquisei agora e organizei a explicação de forma clara:"
-
-    resumo_normalizado = resumo
-    if not re.search(
-        r"(?im)^(?:resumo direto|explicacao direta|o que e|o que é|visao geral):",
-        resumo_normalizado,
-    ):
-        resumo_normalizado = "Explicacao direta:\n" + resumo_normalizado
-
-    partes = [abertura, resumo_normalizado]
+    resumo_normalizado = _limpar_resumo_para_chat(resumo)
+    partes = [resumo_normalizado]
 
     resultados_raw = resultado.get("results")
     pontos_principais: list[str] = []
-    if isinstance(resultados_raw, list) and not re.search(
-        r"(?im)^pontos principais:",
-        resumo_normalizado,
+    provider = str(resultado.get("provider", "")).strip().lower()
+    if (
+        provider != "kira"
+        and isinstance(resultados_raw, list)
+        and not re.search(r"(?im)^pontos principais:", resumo_normalizado)
     ):
         for item in resultados_raw[:4]:
             if not isinstance(item, dict):
@@ -1290,8 +1338,6 @@ def formatar_resposta_pesquisa(resultado: dict, max_fontes: int = 6, max_links: 
             linha = _limpar(linha)
             if not linha:
                 continue
-            if dominio:
-                linha = f"{linha} ({dominio})"
             if linha not in pontos_principais:
                 pontos_principais.append(linha)
     if pontos_principais:
@@ -1311,7 +1357,7 @@ def formatar_resposta_pesquisa(resultado: dict, max_fontes: int = 6, max_links: 
             if dominio:
                 fontes_raw.append(dominio)
     fontes = _dedupe_ordem([str(x) for x in fontes_raw if str(x).strip()])[: max(1, max_fontes)]
-    if fontes:
+    if incluir_fontes and fontes:
         partes.append("Fontes consultadas:\n" + "\n".join(f"- {f}" for f in fontes))
 
     links_raw = list(resultado.get("links") or [])
@@ -1327,7 +1373,7 @@ def formatar_resposta_pesquisa(resultado: dict, max_fontes: int = 6, max_links: 
         if valor.startswith("http://") or valor.startswith("https://"):
             links_raw.append(valor)
     links = _dedupe_ordem([str(x) for x in links_raw if str(x).strip()])[: max(1, max_links)]
-    if links:
+    if incluir_links and links:
         partes.append(
             "Se quiser se aprofundar:\n"
             + "\n".join(f"{i}. {u}" for i, u in enumerate(links, start=1))

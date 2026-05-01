@@ -141,6 +141,8 @@ class ChatApiService {
       out.add('/documentos/analisar');
       out.add('/document/analyze');
       out.add('/docs/analyze');
+    } else if (path == '/images/inspect') {
+      out.add('/image/inspect');
     } else if (path == '/jarvis/status') {
       out.add('/assistant/status');
     }
@@ -164,6 +166,7 @@ class ChatApiService {
             path.startsWith('/jarvis') ||
             path.startsWith('/actions') ||
             path.startsWith('/documents') ||
+            path.startsWith('/images') ||
             path.startsWith('/agent') ||
             path.startsWith('/ops') ||
             path.startsWith('/help') ||
@@ -950,6 +953,28 @@ class ChatApiService {
       }
       rethrow;
     }
+  }
+
+  Future<Map<String, dynamic>> analyzeImageInsights({
+    required String fileName,
+    required String recognizedText,
+    required List<Map<String, dynamic>> labels,
+    required Map<String, dynamic> metadata,
+    required bool fromCamera,
+    required int byteSize,
+  }) {
+    return _requestJson(
+      'POST',
+      '/images/inspect',
+      body: {
+        'filename': fileName,
+        'recognized_text': recognizedText,
+        'labels': labels,
+        'metadata': metadata,
+        'from_camera': fromCamera,
+        'byte_size': byteSize,
+      },
+    );
   }
 
   Map<String, dynamic> _buildLocalDocumentFallback({

@@ -63,7 +63,6 @@ from core.assistente_plus import (
     consultar_clima_por_coordenadas,
     cotacoes_financeiras,
     extrair_consulta_pesquisa_web,
-    formatar_cotacoes_humanas,
     formatar_resposta_pesquisa,
     listar_lembretes,
     pesquisar_na_internet,
@@ -108,7 +107,6 @@ from core.painel_admin import (
     listar_usuarios,
     remover_usuario,
 )
-from core.pesquisa import gerar_pesquisa_wikipedia
 from core.respostas import (
     carregar_aprendizado,
     detectar_intencao,
@@ -163,6 +161,7 @@ from core.session_audit import (
 )
 from core.ops_status import status_operacional
 from core.document_analysis import analisar_documento_base64
+from core.image_research import analisar_imagem_contextualizada
 from core.approval_flow import listar_aprovacoes, decidir_aprovacao
 from core.jarvis_chat_bridge import (
     jarvis_status_snapshot,
@@ -1967,6 +1966,27 @@ class NovaHandler(BaseHTTPRequestHandler):
             filename = str(body.get("filename", "")).strip()
             content_b64 = str(body.get("content_base64", "")).strip()
             out = analisar_documento_base64(filename, content_b64, auto_learn=False)
+            status = HTTPStatus.OK if out.get("ok") else HTTPStatus.BAD_REQUEST
+            self._send_json(out, status=status)
+            return
+        if path == "/images/inspect":
+            filename = str(body.get("filename", "")).strip()
+            recognized_text = str(body.get("recognized_text", "")).strip()
+            metadata = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+            labels = body.get("labels") if isinstance(body.get("labels"), list) else []
+            from_camera = bool(body.get("from_camera", False))
+            try:
+                byte_size = int(body.get("byte_size", 0) or 0)
+            except Exception:
+                byte_size = 0
+            out = analisar_imagem_contextualizada(
+                filename=filename,
+                metadata=metadata,
+                recognized_text=recognized_text,
+                labels=labels,
+                from_camera=from_camera,
+                byte_size=byte_size,
+            )
             status = HTTPStatus.OK if out.get("ok") else HTTPStatus.BAD_REQUEST
             self._send_json(out, status=status)
             return

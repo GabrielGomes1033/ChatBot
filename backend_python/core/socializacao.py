@@ -20,18 +20,19 @@ class SocializacaoIA:
             "automação",
             "empreendedorismo tecnológico",
             "educação com IA",
-            "ciência e sociedade"
+            "ciência e sociedade",
         ]
 
         os.makedirs("memoria", exist_ok=True)
 
         if not os.path.exists(MEMORIA_SOCIAL):
             with open(MEMORIA_SOCIAL, "w", encoding="utf-8") as f:
-                json.dump({
-                    "conversas": [],
-                    "aprendizados": [],
-                    "melhorias_de_resposta": []
-                }, f, ensure_ascii=False, indent=4)
+                json.dump(
+                    {"conversas": [], "aprendizados": [], "melhorias_de_resposta": []},
+                    f,
+                    ensure_ascii=False,
+                    indent=4,
+                )
 
     def carregar_memoria(self):
         with open(MEMORIA_SOCIAL, "r", encoding="utf-8") as f:
@@ -47,22 +48,18 @@ class SocializacaoIA:
     def registrar_conversa(self, tema, mensagens):
         memoria = self.carregar_memoria()
 
-        memoria["conversas"].append({
-            "tema": tema,
-            "data": datetime.now().isoformat(),
-            "mensagens": mensagens
-        })
+        memoria["conversas"].append(
+            {"tema": tema, "data": datetime.now().isoformat(), "mensagens": mensagens}
+        )
 
         self.salvar_memoria(memoria)
 
     def registrar_aprendizado(self, tema, aprendizado):
         memoria = self.carregar_memoria()
 
-        memoria["aprendizados"].append({
-            "tema": tema,
-            "data": datetime.now().isoformat(),
-            "aprendizado": aprendizado
-        })
+        memoria["aprendizados"].append(
+            {"tema": tema, "data": datetime.now().isoformat(), "aprendizado": aprendizado}
+        )
 
         self.salvar_memoria(memoria)
 
@@ -80,19 +77,11 @@ class SocializacaoIA:
         for rodada in range(rodadas):
             resposta_kira = self.kira.responder(fala_nova)
 
-            mensagens.append({
-                "agente": "KIRA",
-                "rodada": rodada + 1,
-                "mensagem": resposta_kira
-            })
+            mensagens.append({"agente": "KIRA", "rodada": rodada + 1, "mensagem": resposta_kira})
 
             fala_nova = self.nova.humanizar_resposta(tema, resposta_kira)
 
-            mensagens.append({
-                "agente": "NOVA",
-                "rodada": rodada + 1,
-                "mensagem": fala_nova
-            })
+            mensagens.append({"agente": "NOVA", "rodada": rodada + 1, "mensagem": fala_nova})
 
             fala_nova = (
                 f"KIRA, avalie esta resposta da NOVA e diga como melhorar "
@@ -104,11 +93,7 @@ class SocializacaoIA:
         self.registrar_conversa(tema, mensagens)
         self.registrar_aprendizado(tema, aprendizado)
 
-        return {
-            "tema": tema,
-            "conversa": mensagens,
-            "aprendizado": aprendizado
-        }
+        return {"tema": tema, "conversa": mensagens, "aprendizado": aprendizado}
 
     def gerar_aprendizado(self, tema, mensagens):
         prompt = (

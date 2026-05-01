@@ -1,21 +1,39 @@
 import 'dart:io';
-
 import 'package:flutter/foundation.dart';
+import 'package:google_mlkit_image_labeling/google_mlkit_image_labeling.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image/image.dart' as img;
 
-typedef AttachmentOcrExecutor =
-    Future<String> Function(
-      String fileName,
-      Uint8List bytes, {
-      String? filePath,
-    });
+typedef AttachmentOcrExecutor = Future<String> Function(
+  String fileName,
+  Uint8List bytes, {
+  String? filePath,
+});
+
+typedef AttachmentLabelExecutor = Future<List<Map<String, dynamic>>> Function(
+  String fileName,
+  Uint8List bytes, {
+  String? filePath,
+});
+
+typedef AttachmentResearchExecutor = Future<Map<String, dynamic>> Function({
+  required String fileName,
+  required String recognizedText,
+  required List<Map<String, dynamic>> labels,
+  required Map<String, dynamic> metadata,
+  required bool fromCamera,
+  required int byteSize,
+});
 
 class AttachmentAnalysisService {
-  AttachmentAnalysisService({AttachmentOcrExecutor? ocrExecutor})
-    : _ocrExecutor = ocrExecutor;
+  AttachmentAnalysisService({
+    AttachmentOcrExecutor? ocrExecutor,
+    AttachmentLabelExecutor? labelExecutor,
+  })  : _ocrExecutor = ocrExecutor,
+        _labelExecutor = labelExecutor;
 
   final AttachmentOcrExecutor? _ocrExecutor;
+  final AttachmentLabelExecutor? _labelExecutor;
 
   static const Set<String> _imageExtensions = {
     'png',
@@ -38,12 +56,15 @@ class AttachmentAnalysisService {
     required Uint8List bytes,
     String? filePath,
     bool fromCamera = false,
+    AttachmentResearchExecutor? researchExecutor,
   }) async {
     final metadata = _extractImageMetadata(fileName: fileName, bytes: bytes);
     final sourceLabel = fromCamera ? 'camera' : 'imagem';
     String recognizedText = '';
     String ocrStatus = 'indisponivel';
     String? ocrMessage;
+    List<Map<String, dynamic>> detectedLabels = const [];
+    String? labelsMessage;
 
     try {
       recognizedText = await _recognizeText(
@@ -62,14 +83,55 @@ class AttachmentAnalysisService {
       ocrMessage = e.toString().replaceFirst('Exception: ', '');
     }
 
+    try {
+      detectedLabels = await _detectLabels(
+        fileName,
+        bytes,
+        filePath: filePath,
+      );
+    } catch (e) {
+      labelsMessage = e.toString().replaceFirst('Exception: ', '');
+    }
+
+    if (researchExecutor != null &&
+        (recognizedText.trim().isNotEmpty || detectedLabels.isNotEmpty)) {
+      try {
+        final remote = await researchExecutor(
+          fileName: fileName,
+          recognizedText: recognizedText,
+          labels: detectedLabels,
+          metadata: metadata,
+          fromCamera: fromCamera,
+          byteSize: bytes.length,
+        );
+        if (remote['ok'] == true) {
+          return _enrichRemoteImageReport(
+            remote,
+            fallbackFileName: fileName,
+            metadata: metadata,
+            detectedLabels: detectedLabels,
+            recognizedText: recognizedText,
+            byteSize: bytes.length,
+            sourceLabel: sourceLabel,
+            ocrStatus: ocrStatus,
+            ocrMessage: ocrMessage,
+            labelsMessage: labelsMessage,
+          );
+        }
+      } catch (_) {
+        // Mantém fallback local quando o backend não estiver disponível.
+      }
+    }
+
     return buildLocalImageReport(
       fileName: fileName,
       bytes: bytes,
       recognizedText: recognizedText,
       sourceLabel: sourceLabel,
       metadata: metadata,
+      detectedLabels: detectedLabels,
       ocrStatus: ocrStatus,
-      ocrMessage: ocrMessage,
+      ocrMessage: ocrMessage ?? labelsMessage,
     );
   }
 
@@ -80,24 +142,27 @@ class AttachmentAnalysisService {
     required String recognizedText,
     required String sourceLabel,
     Map<String, dynamic>? metadata,
+    List<Map<String, dynamic>> detectedLabels = const [],
     String ocrStatus = 'ok',
     String? ocrMessage,
   }) {
     final normalized = recognizedText.replaceAll(RegExp(r'\s+'), ' ').trim();
     final words = normalized.isEmpty ? <String>[] : normalized.split(' ');
-    final topKeywords = _topKeywords(normalized);
+    final topKeywords = _topKeywords(normalized, labels: detectedLabels);
     final risks = _detectRisks(normalized);
-    final excerpts = _sampleExcerpts(normalized);
+    final excerpts = _sampleExcerpts(normalized, labels: detectedLabels);
     final summary = _buildSummary(
       normalized,
       sourceLabel: sourceLabel,
       metadata: metadata ?? const <String, dynamic>{},
+      labels: detectedLabels,
     );
     final recommendations = _buildRecommendations(
       normalized,
       sourceLabel: sourceLabel,
       ocrStatus: ocrStatus,
       metadata: metadata ?? const <String, dynamic>{},
+      labels: detectedLabels,
     );
 
     return {
@@ -111,9 +176,12 @@ class AttachmentAnalysisService {
           'bytes': bytes.length,
           'chars': normalized.length,
           'words': words.length,
-          'estimated_pages': normalized.isEmpty ? 1 : (words.length / 450).ceil().clamp(1, 9999),
+          'estimated_pages': normalized.isEmpty
+              ? 1
+              : (words.length / 450).ceil().clamp(1, 9999),
         },
         'image': metadata ?? const <String, dynamic>{},
+        'detected_labels': detectedLabels,
         'executive_summary': summary,
         'keywords': topKeywords,
         'risks': risks,
@@ -124,13 +192,74 @@ class AttachmentAnalysisService {
         'ok': false,
         'skipped': true,
         'local_fallback': true,
-        'message':
-            ocrMessage ??
+        'message': ocrMessage ??
             'Análise de imagem realizada localmente no dispositivo.',
         'ocr_status': ocrStatus,
         'subject_memory': {'subjects': <String>[]},
       },
     };
+  }
+
+  Map<String, dynamic> _enrichRemoteImageReport(
+    Map<String, dynamic> remote, {
+    required String fallbackFileName,
+    required Map<String, dynamic> metadata,
+    required List<Map<String, dynamic>> detectedLabels,
+    required String recognizedText,
+    required int byteSize,
+    required String sourceLabel,
+    required String ocrStatus,
+    String? ocrMessage,
+    String? labelsMessage,
+  }) {
+    final payload = Map<String, dynamic>.from(remote);
+    final report = (payload['report'] is Map)
+        ? Map<String, dynamic>.from(payload['report'] as Map)
+        : <String, dynamic>{};
+    final stats = (report['stats'] is Map)
+        ? Map<String, dynamic>.from(report['stats'] as Map)
+        : <String, dynamic>{};
+    final image = (report['image'] is Map)
+        ? {...metadata, ...Map<String, dynamic>.from(report['image'] as Map)}
+        : Map<String, dynamic>.from(metadata);
+    final keywords = (report['keywords'] is List)
+        ? List<Map<String, dynamic>>.from(report['keywords'] as List)
+        : _topKeywords(recognizedText, labels: detectedLabels);
+    final excerpts = (report['sample_excerpts'] is List)
+        ? List<dynamic>.from(report['sample_excerpts'] as List)
+        : _sampleExcerpts(recognizedText, labels: detectedLabels);
+
+    report['file_name'] = report['file_name'] ?? fallbackFileName;
+    report['generated_at'] =
+        report['generated_at'] ?? DateTime.now().toIso8601String();
+    report['analysis_type'] = 'image';
+    report['source'] = report['source'] ?? sourceLabel;
+    report['stats'] = {
+      'bytes': stats['bytes'] ?? byteSize,
+      'chars': stats['chars'] ?? recognizedText.length,
+      'words': stats['words'] ??
+          (recognizedText.trim().isEmpty
+              ? 0
+              : recognizedText.trim().split(' ').length),
+      'estimated_pages': stats['estimated_pages'] ?? 1,
+    };
+    report['image'] = image;
+    report['detected_labels'] = detectedLabels;
+    report['keywords'] = keywords;
+    report['sample_excerpts'] = excerpts;
+    payload['report'] = report;
+
+    final learning = (payload['learning'] is Map)
+        ? Map<String, dynamic>.from(payload['learning'] as Map)
+        : <String, dynamic>{};
+    learning['ocr_status'] = ocrStatus;
+    learning['message'] = learning['message'] ??
+        ocrMessage ??
+        labelsMessage ??
+        'Pesquisa de imagem concluída.';
+    payload['learning'] = learning;
+    payload['ok'] = true;
+    return payload;
   }
 
   Future<String> _recognizeText(
@@ -145,7 +274,8 @@ class AttachmentAnalysisService {
       return '';
     }
 
-    final resolvedPath = await _ensureFilePath(fileName, bytes, filePath: filePath);
+    final resolvedPath =
+        await _ensureFilePath(fileName, bytes, filePath: filePath);
     if (resolvedPath == null || resolvedPath.trim().isEmpty) {
       return '';
     }
@@ -157,6 +287,49 @@ class AttachmentAnalysisService {
       return recognized.text.replaceAll(RegExp(r'[ \t]+'), ' ').trim();
     } finally {
       recognizer.close();
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _detectLabels(
+    String fileName,
+    Uint8List bytes, {
+    String? filePath,
+  }) async {
+    if (_labelExecutor != null) {
+      return _labelExecutor!(fileName, bytes, filePath: filePath);
+    }
+    if (kIsWeb || !(Platform.isAndroid || Platform.isIOS)) {
+      return const [];
+    }
+
+    final resolvedPath =
+        await _ensureFilePath(fileName, bytes, filePath: filePath);
+    if (resolvedPath == null || resolvedPath.trim().isEmpty) {
+      return const [];
+    }
+
+    final labeler = ImageLabeler(
+      options: ImageLabelerOptions(confidenceThreshold: 0.65),
+    );
+    try {
+      final inputImage = InputImage.fromFilePath(resolvedPath);
+      final labels = await labeler.processImage(inputImage);
+      final seen = <String>{};
+      final out = <Map<String, dynamic>>[];
+      for (final item in labels) {
+        final label = item.label.trim();
+        if (label.isEmpty) continue;
+        final key = label.toLowerCase();
+        if (!seen.add(key)) continue;
+        out.add({
+          'label': label,
+          'confidence': double.parse(item.confidence.toStringAsFixed(2)),
+        });
+        if (out.length >= 6) break;
+      }
+      return out;
+    } finally {
+      labeler.close();
     }
   }
 
@@ -244,10 +417,16 @@ class AttachmentAnalysisService {
     String recognizedText, {
     required String sourceLabel,
     required Map<String, dynamic> metadata,
+    List<Map<String, dynamic>> labels = const [],
   }) {
     final width = metadata['width'];
     final height = metadata['height'];
     final orientation = metadata['orientation'] ?? 'indefinida';
+    final labelText = labels
+        .map((item) => item['label']?.toString().trim() ?? '')
+        .where((item) => item.isNotEmpty)
+        .take(3)
+        .join(', ');
 
     if (recognizedText.isNotEmpty) {
       final firstSentence = recognizedText.length > 420
@@ -258,13 +437,22 @@ class AttachmentAnalysisService {
           'Texto identificado: $firstSentence';
     }
 
+    if (labelText.isNotEmpty) {
+      return 'Imagem analisada (${sourceLabel == "camera" ? "capturada pela câmera" : "arquivo enviado"}), '
+          'com resolução $width x $height e orientação $orientation. '
+          'Os elementos mais prováveis na cena são: $labelText.';
+    }
+
     return 'Imagem analisada (${sourceLabel == "camera" ? "capturada pela câmera" : "arquivo enviado"}), '
         'com resolução $width x $height e orientação $orientation. '
         'Não encontrei texto legível suficiente para gerar um resumo textual.';
   }
 
-  List<Map<String, dynamic>> _topKeywords(String text) {
-    if (text.isEmpty) return const [];
+  List<Map<String, dynamic>> _topKeywords(
+    String text, {
+    List<Map<String, dynamic>> labels = const [],
+  }) {
+    if (text.isEmpty && labels.isEmpty) return const [];
     const stop = {
       'para',
       'com',
@@ -295,9 +483,25 @@ class AttachmentAnalysisService {
     for (final token in matches) {
       freq[token] = (freq[token] ?? 0) + 1;
     }
+    for (final item in labels) {
+      final label = item['label']?.toString().toLowerCase().trim() ?? '';
+      if (label.isEmpty) continue;
+      final confidence =
+          (item['confidence'] is num) ? item['confidence'] as num : 0;
+      final boost =
+          confidence <= 0 ? 2 : (confidence * 10).round().clamp(1, 10);
+      for (final token in RegExp(r'[a-zA-ZÀ-ÿ0-9_]{3,}').allMatches(label)) {
+        final value = token.group(0) ?? '';
+        if (value.isEmpty || stop.contains(value)) continue;
+        freq[value] = (freq[value] ?? 0) + boost;
+      }
+    }
     final ordered = freq.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    return ordered.take(12).map((e) => {'token': e.key, 'count': e.value}).toList();
+    return ordered
+        .take(12)
+        .map((e) => {'token': e.key, 'count': e.value})
+        .toList();
   }
 
   List<String> _detectRisks(String text) {
@@ -322,15 +526,29 @@ class AttachmentAnalysisService {
     return risks;
   }
 
-  List<String> _sampleExcerpts(String text) {
-    if (text.isEmpty) return const [];
+  List<String> _sampleExcerpts(
+    String text, {
+    List<Map<String, dynamic>> labels = const [],
+  }) {
+    if (text.isEmpty && labels.isEmpty) return const [];
     final excerpts = <String>[];
     for (final part in reSplitSentences(text)) {
       final cleaned = part.trim();
       if (cleaned.length >= 24) {
-        excerpts.add(cleaned.length > 280 ? '${cleaned.substring(0, 280)}...' : cleaned);
+        excerpts.add(
+            cleaned.length > 280 ? '${cleaned.substring(0, 280)}...' : cleaned);
       }
       if (excerpts.length >= 4) break;
+    }
+    if (labels.isNotEmpty && excerpts.length < 4) {
+      final labelText = labels
+          .map((item) => item['label']?.toString().trim() ?? '')
+          .where((item) => item.isNotEmpty)
+          .take(4)
+          .join(', ');
+      if (labelText.isNotEmpty) {
+        excerpts.add('Objetos detectados: $labelText');
+      }
     }
     return excerpts;
   }
@@ -340,6 +558,7 @@ class AttachmentAnalysisService {
     required String sourceLabel,
     required String ocrStatus,
     required Map<String, dynamic> metadata,
+    List<Map<String, dynamic>> labels = const [],
   }) {
     final out = <String>[
       'Revise manualmente o texto reconhecido antes de compartilhar ou arquivar.',
@@ -351,17 +570,26 @@ class AttachmentAnalysisService {
             : 'Se a imagem estiver pequena ou desfocada, tente reenviar uma versão mais nítida.',
       );
     } else {
-      out.add('Se quiser, use esse conteúdo para gerar um resumo mais específico no chat.');
+      out.add(
+          'Se quiser, use esse conteúdo para gerar um resumo mais específico no chat.');
+    }
+    if (recognizedText.isEmpty && labels.isNotEmpty) {
+      out.add(
+          'Use os objetos detectados para pesquisar o contexto da cena, do produto ou do lugar.');
     }
 
     final brightness = double.tryParse('${metadata['brightness'] ?? ''}');
     if (brightness != null && brightness < 85) {
-      out.add('A imagem parece escura; aumente a iluminação para melhorar a leitura.');
+      out.add(
+          'A imagem parece escura; aumente a iluminação para melhorar a leitura.');
     }
-    if ((metadata['orientation'] ?? '') == 'paisagem' && recognizedText.isEmpty) {
-      out.add('Se for um documento, tente capturar em modo retrato para melhorar o OCR.');
+    if ((metadata['orientation'] ?? '') == 'paisagem' &&
+        recognizedText.isEmpty) {
+      out.add(
+          'Se for um documento, tente capturar em modo retrato para melhorar o OCR.');
     }
-    out.add('Para aprendizado automático no backend, mantenha também a análise de documentos autenticada.');
+    out.add(
+        'Para aprendizado automático no backend, mantenha também a análise de documentos autenticada.');
     return out;
   }
 }

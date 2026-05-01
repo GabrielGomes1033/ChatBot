@@ -1,54 +1,27 @@
-# Controla o "tom de voz" da NOVA.
-# Cada modo adiciona prefixos e sufixos diferentes às respostas base.
-import random
+from __future__ import annotations
 
-# Catálogo de estilos disponíveis no aplicativo.
+from core.response_style import PERSONA_STYLES, normalize_mode, style_response
+
+
 modos = {
-    "normal": {"prefixos": ["", "", ""], "sufixos": ["", "", ""]},
-    "engracado": {
-        "prefixos": ["😂 Olha só...", "Hmm, interessante!", "KKKK vamos lá:"],
-        "sufixos": [" 😄", " 🤣", " (essa foi boa)"],
-    },
-    "formal": {
-        "prefixos": ["Compreendo.", "De acordo com sua solicitação:", "Certamente."],
-        "sufixos": [" Estou à disposição.", " Caso precise de mais ajuda, informe.", ""],
-    },
-    "sarcastico": {
-        "prefixos": ["Ah claro...", "Nossa, que surpresa...", "Uau, ninguém esperava isso..."],
-        "sufixos": [" 🙄", " 😏", " (óbvio)"],
-    },
-    "inspirador": {
-        "prefixos": ["🌟 Lembre-se:", "Aqui vai uma reflexão:", "Para você pensar:"],
-        "sufixos": [" ✨", " 💡", " 🌈"],
-    },
-    "tecnologico": {
-        "prefixos": ["🤖 Processando...", "Analisando dados:", "Sinal recebido:"],
-        "sufixos": [" ⚡", " 🛰️", " ✅"],
-    },
+    nome: {
+        "prefixos": list(config.get("prefixes", [])),
+        "sufixos": list(config.get("suffixes", [])),
+    }
+    for nome, config in PERSONA_STYLES.items()
 }
 
-# Guarda o modo selecionado no momento.
 modo_atual = "normal"
 
 
-def set_modo(modo):
-    # Troca o modo global se o nome informado existir no catálogo.
+def set_modo(modo: str) -> str:
     global modo_atual
-    if modo in modos:
-        modo_atual = modo
-        return f"Modo alterado para '{modo.upper()}'"
-    return "Modo não encontrado."
+    modo_normalizado = normalize_mode(modo)
+    if modo_normalizado in modos:
+        modo_atual = modo_normalizado
+        return f"Modo alterado para '{modo_atual.upper()}'"
+    return "Modo nao encontrado."
 
 
-def estilizar(resposta):
-    # Aplica pequenas variações para que a mesma resposta pareça mais viva.
-    estilo = modos.get(modo_atual, modos["normal"])
-    prefixo = random.choice(estilo["prefixos"]).strip()
-    sufixo = random.choice(estilo["sufixos"]).strip()
-
-    if prefixo:
-        resposta = f"{prefixo} {resposta}"
-    if sufixo:
-        resposta = f"{resposta} {sufixo}"
-
-    return resposta
+def estilizar(resposta: str) -> str:
+    return style_response(resposta, modo=modo_atual, use_persona=True)

@@ -44,6 +44,11 @@ class SearchModeTests(unittest.TestCase):
     def test_detecta_pergunta_factual_sem_ativacao(self) -> None:
         self.assertTrue(deve_acionar_pesquisa_web("Quem descobriu o Brasil"))
 
+    def test_classificador_aciona_pesquisa_para_pergunta_natural(self) -> None:
+        decision = classify_intent("O que é Python?")
+        self.assertEqual(decision.tool_name, "search_web")
+        self.assertEqual(decision.params["query"], "Python")
+
     def test_extrai_consulta_comparativa_com_vs(self) -> None:
         consulta = extrair_consulta_pesquisa_web("Qual a diferença entre FastAPI e Flask?")
         self.assertEqual(consulta, "FastAPI vs Flask")
@@ -109,9 +114,9 @@ class SearchModeTests(unittest.TestCase):
                 "links": ["https://example.com/mcp"],
             }
         )
-        self.assertIn("Pesquisei sobre Model Context Protocol", texto)
-        self.assertIn("Fontes consultadas", texto)
-        self.assertIn("Se quiser se aprofundar", texto)
+        self.assertIn("É um padrão para integrar modelos com ferramentas.", texto)
+        self.assertNotIn("Fontes consultadas", texto)
+        self.assertNotIn("Se quiser se aprofundar", texto)
 
     def test_formata_resposta_pesquisa_com_results_structurados(self) -> None:
         texto = formatar_resposta_pesquisa(
@@ -130,10 +135,34 @@ class SearchModeTests(unittest.TestCase):
             }
         )
 
-        self.assertIn("Explicacao direta", texto)
+        self.assertIn("Machine learning permite que sistemas aprendam com dados.", texto)
         self.assertIn("Pontos principais", texto)
-        self.assertIn("Fontes consultadas", texto)
-        self.assertIn("Se quiser se aprofundar", texto)
+        self.assertNotIn("Fontes consultadas", texto)
+        self.assertNotIn("Se quiser se aprofundar", texto)
+
+    def test_formata_resposta_pesquisa_pede_especificacao_para_termo_ambiguo(self) -> None:
+        texto = formatar_resposta_pesquisa(
+            {
+                "ok": True,
+                "query": "Python",
+                "ambiguous": True,
+                "options": [
+                    {
+                        "title": "Python",
+                        "description": "Python é uma linguagem de programação de alto nível.",
+                    },
+                    {
+                        "title": "Pythonidae",
+                        "description": "Pythonidae é uma família de serpentes não peçonhentas.",
+                    },
+                ],
+            }
+        )
+
+        self.assertIn("Python", texto)
+        self.assertIn("pode significar", texto)
+        self.assertIn("linguagem de programação", texto)
+        self.assertIn("serpentes", texto)
 
     def test_orquestrador_respeita_modo_pesquisa(self) -> None:
         with patch(
@@ -152,7 +181,9 @@ class SearchModeTests(unittest.TestCase):
             )
 
         self.assertIsInstance(resposta, dict)
-        self.assertIn("Pesquisei sobre frameworks para agentes de IA", resposta["resposta"])
+        self.assertIn(
+            "Há foco em orquestração, memória e uso de ferramentas.", resposta["resposta"]
+        )
 
     def test_orquestrador_nao_quebra_em_consulta_de_clima(self) -> None:
         with patch("core.nova_unica.consultar_clima", return_value="Tempo estável em Recife."):
@@ -192,7 +223,7 @@ class SearchModeTests(unittest.TestCase):
             resposta = orquestrar_consulta("Quem descobriu o Brasil")
 
         self.assertIsInstance(resposta, dict)
-        self.assertIn("Pesquisei sobre descobriu o Brasil", resposta["resposta"])
+        self.assertIn("Pedro Álvares Cabral", resposta["resposta"])
 
 
 if __name__ == "__main__":
