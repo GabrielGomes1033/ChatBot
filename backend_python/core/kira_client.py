@@ -51,6 +51,56 @@ def _summary_from_text(text: str, *, max_sentences: int = 2, limit: int = 360) -
     return _shorten(summary or text, limit=limit)
 
 
+def _sentence_key(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", _clean(text).lower()).strip()
+
+
+def _sentence_is_redundant(candidate: str, selected: list[str]) -> bool:
+    candidate_key = _sentence_key(candidate)
+    if not candidate_key:
+        return True
+    candidate_tokens = set(candidate_key.split())
+    for existing in selected:
+        existing_key = _sentence_key(existing)
+        if not existing_key:
+            continue
+        if (
+            candidate_key == existing_key
+            or candidate_key in existing_key
+            or existing_key in candidate_key
+        ):
+            return True
+        existing_tokens = set(existing_key.split())
+        if not candidate_tokens or not existing_tokens:
+            continue
+        overlap = len(candidate_tokens & existing_tokens)
+        minimum = min(len(candidate_tokens), len(existing_tokens))
+        if minimum and overlap / minimum >= 0.8:
+            return True
+    return False
+
+
+def _merge_summary_parts(
+    *parts: str,
+    max_sentences: int = 4,
+    limit: int = 560,
+) -> str:
+    selected: list[str] = []
+    for part in parts:
+        for sentence in _split_sentences(part):
+            sentence = _clean(sentence)
+            if not sentence or _sentence_is_redundant(sentence, selected):
+                continue
+            selected.append(sentence)
+            if len(selected) >= max_sentences:
+                break
+        if len(selected) >= max_sentences:
+            break
+    if not selected:
+        return ""
+    return _shorten(" ".join(selected), limit=limit)
+
+
 def _parse_sections(raw_response: str) -> dict[str, str]:
     text = str(raw_response or "").strip()
     if not text:
@@ -112,22 +162,39 @@ def _is_generic_objective(summary: str) -> bool:
 def _build_chat_payload(query: str, raw_response: str) -> dict[str, Any]:
     sections = _parse_sections(raw_response)
     objective = _summary_from_text(
-        sections.get("resposta objetiva", ""), max_sentences=2, limit=280
+        sections.get("resposta objetiva", ""), max_sentences=2, limit=320
     )
     detailed = _summary_from_text(
         sections.get("alto resumo detalhado", ""),
-        max_sentences=3,
-        limit=420,
+        max_sentences=4,
+        limit=560,
     )
     points = _extract_points(sections.get("pontos principais", ""))
 
-    summary = objective
-    if _is_generic_objective(summary):
-        summary = detailed or objective
+    if _is_generic_objective(objective):
+        summary = _merge_summary_parts(
+            detailed,
+            objective,
+            *(point.get("snippet", "") for point in points[:2]),
+            max_sentences=4,
+            limit=560,
+        )
+    else:
+        summary = _merge_summary_parts(
+            objective,
+            detailed,
+            *(point.get("snippet", "") for point in points[:2]),
+            max_sentences=4,
+            limit=560,
+        )
     if not summary and points:
-        summary = _shorten(points[0].get("snippet", ""), 280)
+        summary = _merge_summary_parts(
+            *(point.get("snippet", "") for point in points[:3]),
+            max_sentences=3,
+            limit=420,
+        )
     if not summary:
-        summary = _summary_from_text(raw_response, max_sentences=3, limit=420)
+        summary = _summary_from_text(raw_response, max_sentences=4, limit=560)
 
     if summary:
         summary = re.sub(

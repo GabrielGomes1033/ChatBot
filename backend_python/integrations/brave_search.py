@@ -5,6 +5,7 @@ from typing import Any
 
 import requests
 
+from core.assistente_plus import _limpar_resumo_para_chat
 from core.assistente_plus import pesquisar_na_internet
 from core.kira_client import pesquisar_kira
 from core.pesquisa import gerar_pesquisa_wikipedia
@@ -92,6 +93,7 @@ def search_web(query: str) -> dict[str, Any]:
             wiki = _best_wikipedia_summary(consulta)
         if wiki and (_summary_looks_noisy(summary) or len(consulta.split()) <= 4):
             summary = str(wiki.get("resumo", "")).strip() or summary
+        summary = _limpar_resumo_para_chat(summary)
         return {
             "ok": True,
             "provider": "kira",
@@ -124,6 +126,7 @@ def search_web(query: str) -> dict[str, Any]:
             if results:
                 first = results[0]
                 summary = first.get("snippet", "") or first.get("title", "")
+            summary = _limpar_resumo_para_chat(summary)
             return {
                 "ok": True,
                 "provider": "brave",
@@ -143,15 +146,16 @@ def search_web(query: str) -> dict[str, Any]:
     fallback = pesquisar_na_internet(consulta)
     if fallback.get("ok"):
         links = [link for link in (fallback.get("links") or []) if isinstance(link, str)]
+        summary = _limpar_resumo_para_chat(str(fallback.get("resumo", "")).strip())
         return {
             "ok": True,
             "provider": "fallback_search",
             "query": consulta,
-            "summary": str(fallback.get("resumo", "")).strip(),
+            "summary": summary,
             "results": [
                 {
                     "title": str(fallback.get("consulta", consulta)).strip(),
-                    "snippet": str(fallback.get("resumo", "")).strip(),
+                    "snippet": summary,
                     "url": links[0] if links else "",
                 }
             ],
@@ -162,15 +166,16 @@ def search_web(query: str) -> dict[str, Any]:
     wiki = gerar_pesquisa_wikipedia(consulta)
     if wiki:
         url = str(wiki.get("url", "")).strip()
+        summary = _limpar_resumo_para_chat(str(wiki.get("resumo", "")).strip())
         return {
             "ok": True,
             "provider": "wikipedia",
             "query": consulta,
-            "summary": str(wiki.get("resumo", "")).strip(),
+            "summary": summary,
             "results": [
                 {
                     "title": str(wiki.get("titulo", consulta)).strip(),
-                    "snippet": str(wiki.get("resumo", "")).strip(),
+                    "snippet": summary,
                     "url": url,
                 }
             ],

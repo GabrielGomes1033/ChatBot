@@ -20,7 +20,7 @@ def _limpar_texto(texto: str) -> str:
     return texto
 
 
-def _resumo_curto(texto: str, limite_sentencas: int = 2, limite_chars: int = 320) -> str:
+def _resumo_curto(texto: str, limite_sentencas: int = 3, limite_chars: int = 520) -> str:
     # Encurta o texto para algo breve e agradável de ler e ouvir.
     texto = _limpar_texto(texto)
     partes = re.split(r"(?<=[.!?])\s+", texto)

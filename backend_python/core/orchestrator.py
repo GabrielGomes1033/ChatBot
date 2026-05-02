@@ -1033,8 +1033,6 @@ class NovaOrchestrator:
                 text=f"Pesquisa web sobre {result.get('query', '')}: {result.get('summary', '')}",
                 metadata={"source": "search_web", "category": "pesquisa"},
             )
-            if not result.get("ambiguous") and str(result.get("summary", "")).strip():
-                reply = self._offer_search_translation(uid, reply)
         if tool == "schedule_calendar_event" and bool(result.get("ok")):
             self.vector_store.index_text(
                 user_id=uid,

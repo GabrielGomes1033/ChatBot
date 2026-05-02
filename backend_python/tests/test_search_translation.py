@@ -71,7 +71,7 @@ class SearchTranslationTests(unittest.TestCase):
                 )
 
             self.assertIn("Electric cars reduce emissions", pesquisa["reply"])
-            self.assertIn("Responda sim ou nao", pesquisa["reply"])
+            self.assertNotIn("Responda sim ou nao", pesquisa["reply"])
 
             with patch(
                 "core.orchestrator.translate_text",
@@ -125,11 +125,15 @@ class SearchTranslationTests(unittest.TestCase):
                 "Machine learning permite que sistemas aprendam a partir de dados.",
                 pesquisa["reply"],
             )
-            self.assertIn("Pontos principais", pesquisa["reply"])
+            self.assertIn(
+                "É uma área da IA focada em aprender padrões e fazer previsões.",
+                pesquisa["reply"],
+            )
+            self.assertNotIn("Pontos principais", pesquisa["reply"])
             self.assertNotIn("Fontes consultadas", pesquisa["reply"])
             memory.close()
 
-    def test_search_reply_can_offer_translation_confirmation(self) -> None:
+    def test_search_reply_stays_in_summary_mode(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             memory = MemoryStore(Path(tmpdir) / "nova_memory_test.db")
             orchestrator = NovaOrchestrator(
@@ -152,26 +156,11 @@ class SearchTranslationTests(unittest.TestCase):
                     "pesquise sobre electric cars",
                 )
 
-            with patch(
-                "core.orchestrator.translate_text",
-                return_value={
-                    "ok": True,
-                    "translated_text": "Carros eletricos reduzem emissoes.",
-                    "provider": "mock",
-                    "target_language": "pt",
-                },
-            ):
-                traducao = orchestrator.handle(
-                    "tester",
-                    "sim",
-                )
-
-            self.assertIn("traduzir essa pesquisa para portugues", pesquisa["reply"].lower())
-            self.assertIn("Traducao da ultima pesquisa para portugues", traducao["reply"])
-            self.assertIn("Carros eletricos reduzem emissoes", traducao["reply"])
+            self.assertEqual(pesquisa["reply"], "Electric cars reduce emissions.")
+            self.assertNotIn("traduzir essa pesquisa", pesquisa["reply"].lower())
             memory.close()
 
-    def test_search_reply_translation_offer_can_be_declined(self) -> None:
+    def test_search_reply_does_not_include_extra_sections(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             memory = MemoryStore(Path(tmpdir) / "nova_memory_test.db")
             orchestrator = NovaOrchestrator(
@@ -185,21 +174,21 @@ class SearchTranslationTests(unittest.TestCase):
                 return_value={
                     "ok": True,
                     "query": "electric cars",
-                    "summary": "Electric cars reduce emissions.",
+                    "summary": (
+                        "Pesquisei sobre electric cars e organizei a explicação de forma clara:\n\n"
+                        "Resumo direto:\nElectric cars reduce emissions.\n\n"
+                        "Pontos principais:\n1. Need batteries.\n\n"
+                        "Fontes consultadas:\n- https://example.com/cars"
+                    ),
                     "sources": ["https://example.com/cars"],
                 },
             ):
-                orchestrator.handle(
+                resposta = orchestrator.handle(
                     "tester",
                     "pesquise sobre electric cars",
                 )
 
-            resposta = orchestrator.handle(
-                "tester",
-                "nao",
-            )
-
-            self.assertIn("Mantive a pesquisa no idioma original", resposta["reply"])
+            self.assertEqual(resposta["reply"], "Electric cars reduce emissions.")
             memory.close()
 
     def test_translate_last_search_without_previous_search_returns_guidance(self) -> None:

@@ -127,25 +127,110 @@ def _limpar_resumo_para_chat(texto: str) -> str:
     body = str(texto or "").strip()
     if not body:
         return ""
+    body = body.replace("\r\n", "\n").replace("\r", "\n")
     body = re.sub(r"[ \t]+", " ", body)
+    body = re.sub(r"(?im)^\s*resposta r[áa]pida\s*:?\s*$", "", body)
+    body = re.sub(
+        r"(?is)^\s*pesquisei(?:\s+sobre[^\n:]*)?\s+e\s+organizei[^\n:]*:\s*",
+        "",
+        body,
+    )
     body = re.sub(
         r"(?im)^(?:resumo direto|explicacao direta|explicação direta|visao geral|visão geral):\s*",
         "",
         body,
     )
     body = re.sub(
-        r"(?is)\n*fontes consultadas:\s*.*$",
-        "",
-        body,
-    )
-    body = re.sub(
-        r"(?is)\n*se quiser se aprofundar:\s*.*$",
+        (
+            r"(?is)\n*(?:pontos principais|contexto técnico|contexto tecnico|"
+            r"referências de música|referencias de musica|panorama financeiro|"
+            r"fontes consultadas|se quiser se aprofundar):\s*.*$"
+        ),
         "",
         body,
     )
     body = re.sub(r"\s+\((?:[a-z0-9-]+\.)+[a-z]{2,}\)", "", body, flags=re.IGNORECASE)
     body = re.sub(r"\n{3,}", "\n\n", body)
     return body.strip()
+
+
+def _extrair_resumo_de_linha(texto: str) -> str:
+    body = _limpar_resumo_para_chat(texto)
+    if not body:
+        return ""
+    if " — " in body:
+        _, trecho = body.split(" — ", 1)
+        return _limpar(trecho) or body
+    if ": " in body:
+        prefixo, trecho = body.split(": ", 1)
+        if len(prefixo) <= 40 and len(trecho.split()) >= 4:
+            return _limpar(trecho) or body
+    return body
+
+
+def _quebrar_em_frases(texto: str) -> list[str]:
+    body = _limpar_resumo_para_chat(texto)
+    if not body:
+        return []
+    body = re.sub(r"\s*\n+\s*", " ", body).strip()
+    partes = [_limpar(p) for p in re.split(r"(?<=[.!?])\s+", body) if _limpar(p)]
+    if partes:
+        return partes
+    return [body]
+
+
+def _frase_repetida(candidata: str, existentes: list[str]) -> bool:
+    chave = re.sub(r"[^a-z0-9]+", " ", _normalizar_ascii(candidata)).strip()
+    if not chave:
+        return True
+    tokens_candidata = set(chave.split())
+    for existente in existentes:
+        chave_existente = re.sub(r"[^a-z0-9]+", " ", _normalizar_ascii(existente)).strip()
+        if not chave_existente:
+            continue
+        if chave == chave_existente or chave in chave_existente or chave_existente in chave:
+            return True
+        tokens_existente = set(chave_existente.split())
+        if not tokens_candidata or not tokens_existente:
+            continue
+        intersecao = len(tokens_candidata & tokens_existente)
+        minimo = min(len(tokens_candidata), len(tokens_existente))
+        if minimo and intersecao / minimo >= 0.8:
+            return True
+    return False
+
+
+def _combinar_resumo_claro(
+    resumo_base: str,
+    extras: list[str] | None = None,
+    *,
+    max_frases: int = 4,
+    limite_chars: int = 720,
+) -> str:
+    frases: list[str] = []
+
+    for frase in _quebrar_em_frases(resumo_base):
+        if _frase_repetida(frase, frases):
+            continue
+        frases.append(frase)
+        if len(frases) >= max_frases:
+            break
+
+    for extra in extras or []:
+        if len(frases) >= max_frases:
+            break
+        for frase in _quebrar_em_frases(_extrair_resumo_de_linha(extra)):
+            if _frase_repetida(frase, frases):
+                continue
+            frases.append(frase)
+            break
+
+    texto = " ".join(frases).strip()
+    if not texto:
+        return _limpar_resumo_para_chat(resumo_base)
+    if len(texto) > limite_chars:
+        return _resumir_texto(texto, limite=limite_chars)
+    return texto
 
 
 def _normalizar_ascii(texto: str) -> str:
@@ -1006,7 +1091,6 @@ def pesquisar_na_internet(consulta: str) -> dict:
     categoria_consulta = _classificar_consulta_web(consulta_base)
     tk = _tokens(consulta_base)
     termos_consulta = _termos_relevantes_consulta(consulta_base)
-    secoes: list[str] = []
     resumo_rapido = ""
     destaques_web: list[str] = []
     secao_programacao: list[str] = []
@@ -1228,23 +1312,30 @@ def pesquisar_na_internet(consulta: str) -> dict:
                 secao_financas.append(_resumir_texto(item, limite=120))
             fontes.append("YahooFinance")
 
-    if resumo_rapido:
-        secoes.append("Resumo direto:\n" + resumo_rapido)
-
-    if destaques_web:
-        linhas = [f"{i}. {txt}" for i, txt in enumerate(destaques_web[:4], start=1)]
-        secoes.append("Pontos principais:\n" + "\n".join(linhas))
-
+    extras_resumo: list[str] = []
+    extras_resumo.extend(destaques_web[:2])
     if secao_programacao:
-        secoes.append("Contexto técnico:\n" + "\n".join(f"- {x}" for x in secao_programacao[:4]))
-
+        extras_resumo.append(secao_programacao[0])
     if secao_musica:
-        secoes.append("Referências de música:\n" + "\n".join(f"- {x}" for x in secao_musica[:4]))
-
+        extras_resumo.append(secao_musica[0])
     if secao_financas:
-        secoes.append("Panorama financeiro:\n" + "\n".join(f"- {x}" for x in secao_financas[:4]))
+        extras_resumo.append(secao_financas[0])
 
-    if not secoes:
+    resumo = _limpar_resumo_para_chat(resumo_rapido)
+    if resumo:
+        resumo = _combinar_resumo_claro(resumo, extras_resumo, max_frases=4, limite_chars=720)
+    elif extras_resumo:
+        resumo = _combinar_resumo_claro(
+            " ".join(
+                trecho
+                for trecho in (_extrair_resumo_de_linha(item) for item in extras_resumo)
+                if trecho
+            ),
+            max_frases=4,
+            limite_chars=720,
+        )
+
+    if not resumo:
         return {
             "ok": False,
             "resumo": "Não consegui coletar fontes agora. Se quiser, me ensine essa resposta com /ensinar pergunta = resposta.",
@@ -1252,7 +1343,6 @@ def pesquisar_na_internet(consulta: str) -> dict:
             "links": [],
         }
 
-    resumo = "\n\n".join(s for s in secoes if s.strip()).strip()
     if len(resumo) > 1400:
         resumo = resumo[:1400].rsplit(" ", 1)[0].rstrip(" ,.;:-") + "..."
 
@@ -1311,75 +1401,37 @@ def formatar_resposta_pesquisa(
         return "Não consegui encontrar um resumo agora."
 
     resumo_normalizado = _limpar_resumo_para_chat(resumo)
-    partes = [resumo_normalizado]
-
     resultados_raw = resultado.get("results")
-    pontos_principais: list[str] = []
-    provider = str(resultado.get("provider", "")).strip().lower()
-    if (
-        provider != "kira"
-        and isinstance(resultados_raw, list)
-        and not re.search(r"(?im)^pontos principais:", resumo_normalizado)
-    ):
-        for item in resultados_raw[:4]:
-            if not isinstance(item, dict):
-                continue
-            titulo = _resumir_texto(str(item.get("title", "")), limite=90)
-            snippet = _resumir_texto(str(item.get("snippet", "")), limite=140)
-            dominio = _limpar(str(item.get("domain", "")))
-            if not dominio:
-                dominio = _limpar(urlparse(str(item.get("url", ""))).netloc.replace("www.", ""))
-            if titulo and snippet:
-                linha = f"{titulo} — {snippet}"
-            elif snippet:
-                linha = snippet
-            else:
-                linha = titulo
-            linha = _limpar(linha)
-            if not linha:
-                continue
-            if linha not in pontos_principais:
-                pontos_principais.append(linha)
-    if pontos_principais:
-        partes.append(
-            "Pontos principais:\n"
-            + "\n".join(f"{idx}. {linha}" for idx, linha in enumerate(pontos_principais, start=1))
-        )
-
-    fontes_raw = list(resultado.get("fontes") or resultado.get("sources") or [])
-    if isinstance(resultados_raw, list):
+    if not resumo_normalizado and isinstance(resultados_raw, list):
         for item in resultados_raw:
             if not isinstance(item, dict):
                 continue
-            dominio = _limpar(str(item.get("domain", "")))
-            if not dominio:
-                dominio = _limpar(urlparse(str(item.get("url", ""))).netloc.replace("www.", ""))
-            if dominio:
-                fontes_raw.append(dominio)
-    fontes = _dedupe_ordem([str(x) for x in fontes_raw if str(x).strip()])[: max(1, max_fontes)]
-    if incluir_fontes and fontes:
-        partes.append("Fontes consultadas:\n" + "\n".join(f"- {f}" for f in fontes))
+            candidato = _extrair_resumo_de_linha(
+                str(item.get("snippet", "")) or str(item.get("title", ""))
+            )
+            if candidato:
+                resumo_normalizado = candidato
+                break
+    if not resumo_normalizado:
+        return "Não consegui encontrar um resumo agora."
 
-    links_raw = list(resultado.get("links") or [])
+    extras_resumo: list[str] = []
     if isinstance(resultados_raw, list):
-        for item in resultados_raw:
+        for item in resultados_raw[:3]:
             if not isinstance(item, dict):
                 continue
-            url = _limpar(str(item.get("url", "")))
-            if url:
-                links_raw.append(url)
-    for item in resultado.get("sources") or []:
-        valor = _limpar(str(item))
-        if valor.startswith("http://") or valor.startswith("https://"):
-            links_raw.append(valor)
-    links = _dedupe_ordem([str(x) for x in links_raw if str(x).strip()])[: max(1, max_links)]
-    if incluir_links and links:
-        partes.append(
-            "Se quiser se aprofundar:\n"
-            + "\n".join(f"{i}. {u}" for i, u in enumerate(links, start=1))
-        )
+            candidato = _extrair_resumo_de_linha(
+                str(item.get("snippet", "")) or str(item.get("title", ""))
+            )
+            if candidato:
+                extras_resumo.append(candidato)
 
-    texto = "\n\n".join(p for p in partes if p.strip())
+    texto = _combinar_resumo_claro(
+        resumo_normalizado,
+        extras_resumo,
+        max_frases=4,
+        limite_chars=720,
+    )
     texto = re.sub(r"\n{3,}", "\n\n", texto).strip()
     return texto
 

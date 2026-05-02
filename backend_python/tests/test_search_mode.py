@@ -109,12 +109,21 @@ class SearchModeTests(unittest.TestCase):
             {
                 "ok": True,
                 "consulta": "Model Context Protocol",
-                "resumo": "Resumo direto:\nÉ um padrão para integrar modelos com ferramentas.",
+                "resumo": (
+                    "Pesquisei sobre Model Context Protocol e organizei a explicação de forma clara:\n\n"
+                    "Resumo direto:\nÉ um padrão para integrar modelos com ferramentas.\n\n"
+                    "Pontos principais:\n"
+                    "1. Facilita a conexão com ferramentas.\n\n"
+                    "Fontes consultadas:\n"
+                    "- Wikipedia PT"
+                ),
                 "fontes": ["Wikipedia PT", "DuckDuckGo"],
                 "links": ["https://example.com/mcp"],
             }
         )
         self.assertIn("É um padrão para integrar modelos com ferramentas.", texto)
+        self.assertNotIn("Pesquisei sobre", texto)
+        self.assertNotIn("Pontos principais", texto)
         self.assertNotIn("Fontes consultadas", texto)
         self.assertNotIn("Se quiser se aprofundar", texto)
 
@@ -136,7 +145,8 @@ class SearchModeTests(unittest.TestCase):
         )
 
         self.assertIn("Machine learning permite que sistemas aprendam com dados.", texto)
-        self.assertIn("Pontos principais", texto)
+        self.assertIn("É uma área da IA focada em aprender padrões a partir de dados.", texto)
+        self.assertNotIn("Pontos principais", texto)
         self.assertNotIn("Fontes consultadas", texto)
         self.assertNotIn("Se quiser se aprofundar", texto)
 
