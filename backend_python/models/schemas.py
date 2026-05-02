@@ -87,6 +87,35 @@ class MemorySearchResponse(BaseModel):
     total: int = 0
 
 
+class BrainNoteWriteRequest(BaseModel):
+    title: str = Field(..., min_length=1, description="Título da nota no vault")
+    content: str = Field(default="", description="Conteúdo Markdown da nota")
+    folder: str = Field(default="", description="Subpasta opcional dentro do vault")
+
+
+class BrainNoteResponse(BaseModel):
+    ok: bool = True
+    note: Optional[dict] = None
+    error: Optional[str] = None
+
+
+class BrainSearchResponse(BaseModel):
+    ok: bool = True
+    vault_path: str = ""
+    items: list = []
+    total: int = 0
+
+
+class BrainGraphResponse(BaseModel):
+    ok: bool = True
+    vault_path: str = ""
+    nodes: list = []
+    edges: list = []
+    total_notes: int = 0
+    total_nodes: int = 0
+    total_edges: int = 0
+
+
 class ToolApprovalRequest(BaseModel):
     user_id: str = "default"
     tool_name: str = Field(..., min_length=1, description="Nome da ferramenta")

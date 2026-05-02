@@ -170,4 +170,90 @@ void main() {
     expect(body['from_camera'], isTrue);
     expect(body['byte_size'], 2048);
   });
+
+  test('brain endpoints carregam notas e sugestoes do vault', () async {
+    final called = <String>[];
+
+    final service = ChatApiService(
+      baseUrl: 'http://127.0.0.1:8000',
+      httpExecutor: (
+        String method,
+        Uri uri, {
+        required Map<String, String> headers,
+        String? encodedBody,
+      }) async {
+        called.add(uri.toString());
+        if (uri.path == '/brain/notes') {
+          expect(method, 'GET');
+          return http.Response(
+            jsonEncode({
+              'ok': true,
+              'items': [
+                {'title': 'Atlas', 'excerpt': 'Projeto Atlas em andamento.'},
+              ],
+            }),
+            200,
+          );
+        }
+        if (uri.path == '/brain/suggestions') {
+          expect(method, 'GET');
+          return http.Response(
+            jsonEncode({
+              'ok': true,
+              'items': [
+                {'source': 'Atlas', 'target': 'CRM'},
+              ],
+            }),
+            200,
+          );
+        }
+        fail('Chamada inesperada: ${uri.toString()}');
+      },
+    );
+
+    final notes = await service.getBrainNotes(limit: 5);
+    final suggestions = await service.getBrainSuggestions(limit: 4);
+
+    expect(notes.single['title'], 'Atlas');
+    expect(suggestions.single['target'], 'CRM');
+    expect(called, [
+      'http://127.0.0.1:8000/brain/notes?query=&limit=5',
+      'http://127.0.0.1:8000/brain/suggestions?note_ref=&limit=4',
+    ]);
+  });
+
+  test('saveBrainNote envia markdown para o backend', () async {
+    late Map<String, dynamic> body;
+
+    final service = ChatApiService(
+      baseUrl: 'http://127.0.0.1:8000',
+      httpExecutor: (
+        String method,
+        Uri uri, {
+        required Map<String, String> headers,
+        String? encodedBody,
+      }) async {
+        expect(method, 'POST');
+        expect(uri.toString(), 'http://127.0.0.1:8000/brain/notes');
+        body = jsonDecode(encodedBody!) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({
+            'ok': true,
+            'note': {'title': 'Nova Nota', 'path': 'projetos/Nova Nota.md'},
+          }),
+          200,
+        );
+      },
+    );
+
+    final note = await service.saveBrainNote(
+      title: 'Nova Nota',
+      content: 'Conteudo com [[Ligacoes]].',
+      folder: 'projetos',
+    );
+
+    expect(note['title'], 'Nova Nota');
+    expect(body['folder'], 'projetos');
+    expect(body['content'], 'Conteudo com [[Ligacoes]].');
+  });
 }

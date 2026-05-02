@@ -33,6 +33,8 @@ class ApiSmokeTests(unittest.TestCase):
         self.assertEqual(payload["entrypoint"], "fastapi_app")
         self.assertEqual(payload["service"], "nova-api")
         self.assertIn("/chat", payload["endpoints"])
+        self.assertIn("/brain/graph", payload["endpoints"])
+        self.assertIn("/brain/suggestions", payload["endpoints"])
 
     def test_voice_status_rate_limit_returns_429(self) -> None:
         last_ok = None

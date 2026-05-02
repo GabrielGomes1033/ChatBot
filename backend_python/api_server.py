@@ -11,7 +11,7 @@ import re
 import sys
 import time
 import unicodedata
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 BASE_DIR = Path(__file__).resolve().parent
 if str(BASE_DIR) not in sys.path:
@@ -68,6 +68,7 @@ from core.assistente_plus import (
     pesquisar_na_internet,
     resumo_adaptacao_usuario,
 )
+from core.brain_vault import BrainVault
 from core.nova_unica import (
     aplicar_identidade_nova,
     atualizar_perfil_por_interacao,
@@ -187,6 +188,9 @@ from integrations.maps_provider import (
     reverse_geocode,
     search_places,
 )
+
+
+_BRAIN_VAULT = BrainVault()
 
 
 def _novo_contexto():
@@ -638,6 +642,11 @@ def processar_mensagem(user):
             )
         except OPTIONAL_RUNTIME_ERRORS as exc:
             _log_warning("trace_record_fail", exc, trace_event=evento)
+        try:
+            brain_user = str(CONTEXTO.get("nome_usuario", "") or "legacy-chat").strip() or "legacy-chat"
+            _BRAIN_VAULT.append_chat_turn(brain_user, user, msg)
+        except OPTIONAL_RUNTIME_ERRORS as exc:
+            _log_warning("brain_chat_turn_fail", exc, user_id=brain_user)
         return msg
 
     if not user:
@@ -677,6 +686,11 @@ def processar_mensagem(user):
                 texto=f"{consulta_limpa}\n{resumo_limpo}\n{' '.join(fontes)}",
                 origem="web_search",
                 resumo=resumo_limpo,
+            )
+            _BRAIN_VAULT.save_research_note(
+                consulta_limpa,
+                resumo_limpo,
+                sources=[str(src).strip() for src in fontes if str(src).strip()],
             )
         except OPTIONAL_RUNTIME_ERRORS as exc:
             _log_warning("search_learning_fail", exc, query=consulta_limpa)
@@ -1509,6 +1523,8 @@ class NovaHandler(BaseHTTPRequestHandler):
                         "/jarvis/status",
                         "/actions/tools",
                         "/memory/recent",
+                        "/brain/notes",
+                        "/brain/graph",
                         "/voice/status",
                         "/market/quotes",
                         "/weather/now",
@@ -1569,6 +1585,71 @@ class NovaHandler(BaseHTTPRequestHandler):
                 limit=max(1, min(limit, 50)),
             )
             self._send_json({"ok": True, "items": items, "total": len(items)})
+            return
+        if path == "/brain/notes":
+            search_query = str(query.get("query", [""])[0] or "").strip()
+            limit = _parse_int_or_default(
+                query.get("limit", ["20"])[0] or "20",
+                20,
+                evento="invalid_brain_notes_limit",
+                campo="limit",
+            )
+            items = (
+                _BRAIN_VAULT.search_notes(search_query, limit=max(1, min(limit, 200)))
+                if search_query
+                else _BRAIN_VAULT.list_notes(limit=max(1, min(limit, 200)))
+            )
+            self._send_json(
+                {
+                    "ok": True,
+                    "vault_path": str(_BRAIN_VAULT.vault_dir),
+                    "items": items,
+                    "total": len(items),
+                }
+            )
+            return
+        if path.startswith("/brain/notes/"):
+            note_ref = unquote(path[len("/brain/notes/") :].strip())
+            note = _BRAIN_VAULT.get_note(note_ref)
+            if note is None:
+                self._send_json(
+                    {"ok": False, "error": "note_not_found", "note": None},
+                    status=HTTPStatus.NOT_FOUND,
+                )
+                return
+            self._send_json({"ok": True, "note": note})
+            return
+        if path.startswith("/brain/backlinks/"):
+            note_ref = unquote(path[len("/brain/backlinks/") :].strip())
+            payload = _BRAIN_VAULT.get_backlinks(note_ref)
+            status = HTTPStatus.OK if payload.get("ok") else HTTPStatus.NOT_FOUND
+            self._send_json(payload, status=status)
+            return
+        if path == "/brain/graph":
+            graph = _BRAIN_VAULT.build_index()
+            self._send_json(
+                {
+                    "ok": True,
+                    "vault_path": str(graph.get("vault_path", "")),
+                    "nodes": graph.get("nodes", []),
+                    "edges": graph.get("edges", []),
+                    "total_notes": int(graph.get("total_notes", 0) or 0),
+                    "total_nodes": int(graph.get("total_nodes", 0) or 0),
+                    "total_edges": int(graph.get("total_edges", 0) or 0),
+                }
+            )
+            return
+        if path == "/brain/suggestions":
+            note_ref = str(query.get("note_ref", [""])[0] or "").strip()
+            limit = _parse_int_or_default(
+                query.get("limit", ["20"])[0] or "20",
+                20,
+                evento="invalid_brain_suggestions_limit",
+                campo="limit",
+            )
+            self._send_json(
+                _BRAIN_VAULT.suggest_links(note_ref=note_ref, limit=max(1, min(limit, 200)))
+            )
             return
         if path == "/ops/status":
             self._send_json(status_operacional())
@@ -1852,7 +1933,21 @@ class NovaHandler(BaseHTTPRequestHandler):
                 scope=scope,
                 source="api_server",
             )
+            _BRAIN_VAULT.save_memory_note(category, content, user_id=user_id)
             self._send_json({"ok": True, "item": item})
+            return
+
+        if path == "/brain/notes":
+            title = str(body.get("title", "")).strip()
+            content = str(body.get("content", "")).strip()
+            folder = str(body.get("folder", "")).strip()
+            if not title:
+                self._send_json(
+                    {"ok": False, "error": "title_required"}, status=HTTPStatus.BAD_REQUEST
+                )
+                return
+            note = _BRAIN_VAULT.save_note(title, content, folder=folder)
+            self._send_json({"ok": True, "note": note})
             return
 
         if path == "/actions/approve":

@@ -27,6 +27,7 @@ import '../services/reminder_notifications.dart';
 import '../services/secure_secrets_service.dart';
 import '../services/speech_formatter.dart';
 import '../services/system_scan_service.dart';
+import '../widgets/home/brain_widgets.dart';
 import '../widgets/home/chat_shell_widgets.dart';
 import '../widgets/home/dialog_widgets.dart';
 
@@ -102,6 +103,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Map<String, dynamic> _voiceStatus = {};
   List<Map<String, dynamic>> _jarvisTools = [];
   List<Map<String, dynamic>> _recentMemory = [];
+  List<Map<String, dynamic>> _brainNotes = [];
+  List<Map<String, dynamic>> _brainSuggestions = [];
+  Map<String, dynamic> _brainGraph = {};
   Map<String, dynamic>? _pendingLocalCalendarEvent;
 
   bool get _listenModeEnabled => _config['escuta_ativa'] != false;
@@ -190,11 +194,34 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         .toList();
   }
 
+  List<String> _brainRailItems() {
+    final suggestionTexts = _brainSuggestions.take(2).map((item) {
+      final source = item['source']?.toString().trim() ?? '';
+      final target = item['target']?.toString().trim() ?? '';
+      if (source.isEmpty || target.isEmpty) return '';
+      return 'Sugerido: $source -> $target';
+    }).where((item) => item.isNotEmpty);
+
+    final noteTexts = _brainNotes.take(2).map((item) {
+      final title = item['title']?.toString().trim() ?? '';
+      final excerpt = item['excerpt']?.toString().trim() ?? '';
+      if (title.isEmpty) return '';
+      return excerpt.isEmpty
+          ? title
+          : '$title: ${_truncateRailText(excerpt, limit: 64)}';
+    }).where((item) => item.isNotEmpty);
+
+    return [...suggestionTexts, ...noteTexts].take(3).toList();
+  }
+
   Future<void> _refreshJarvisFoundation() async {
     Map<String, dynamic> jarvisStatus = _jarvisStatus;
     Map<String, dynamic> voiceStatus = _voiceStatus;
     List<Map<String, dynamic>> tools = _jarvisTools;
     List<Map<String, dynamic>> recentMemory = _recentMemory;
+    List<Map<String, dynamic>> brainNotes = _brainNotes;
+    List<Map<String, dynamic>> brainSuggestions = _brainSuggestions;
+    Map<String, dynamic> brainGraph = _brainGraph;
 
     try {
       jarvisStatus = await _api.getJarvisStatus();
@@ -215,12 +242,27 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       );
     } catch (_) {}
 
+    try {
+      brainNotes = await _api.getBrainNotes(limit: 6);
+    } catch (_) {}
+
+    try {
+      brainSuggestions = await _api.getBrainSuggestions(limit: 6);
+    } catch (_) {}
+
+    try {
+      brainGraph = await _api.getBrainGraph();
+    } catch (_) {}
+
     if (!mounted) return;
     setState(() {
       _jarvisStatus = jarvisStatus;
       _voiceStatus = voiceStatus;
       _jarvisTools = tools;
       _recentMemory = recentMemory;
+      _brainNotes = brainNotes;
+      _brainSuggestions = brainSuggestions;
+      _brainGraph = brainGraph;
     });
   }
 
@@ -4040,6 +4082,245 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return raw;
   }
 
+  Future<bool> _openCreateBrainNoteDialog() async {
+    if (!mounted) return false;
+    final titleController = TextEditingController();
+    final folderController = TextEditingController();
+    final contentController = TextEditingController();
+
+    final created = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF081722),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: const BorderSide(color: Color(0xFF0E4868)),
+          ),
+          title: const Text(
+            'Nova nota no vault',
+            style: TextStyle(color: Color(0xFFE6F8FF)),
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  NovaInput(
+                    controller: titleController,
+                    hintText: 'Titulo da nota',
+                  ),
+                  const SizedBox(height: 10),
+                  NovaInput(
+                    controller: folderController,
+                    hintText: 'Pasta opcional, ex: projetos/atlas',
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: contentController,
+                    minLines: 8,
+                    maxLines: 14,
+                    style: const TextStyle(color: Color(0xFFEAF8FF)),
+                    decoration: InputDecoration(
+                      hintText:
+                          'Escreva em Markdown. Exemplo: [[Projeto Atlas]] #ideia',
+                      hintStyle: const TextStyle(color: Color(0x7FB3C9D7)),
+                      filled: true,
+                      fillColor: const Color(0x66021626),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: Color(0xFF0E4868)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: Color(0xFF0E4868)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: Color(0xFF33C7FF)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final title = titleController.text.trim();
+                final content = contentController.text.trim();
+                final folder = folderController.text.trim();
+                if (title.isEmpty) {
+                  _showSnack('Digite um titulo para a nota.');
+                  return;
+                }
+                try {
+                  await _api.saveBrainNote(
+                    title: title,
+                    content: content,
+                    folder: folder,
+                  );
+                  if (dialogContext.mounted) {
+                    Navigator.of(dialogContext).pop(true);
+                  }
+                } catch (error) {
+                  _showSnack(_humanizeApiError(error));
+                }
+              },
+              child: const Text('Salvar nota'),
+            ),
+          ],
+        );
+      },
+    );
+
+    titleController.dispose();
+    folderController.dispose();
+    contentController.dispose();
+
+    if (created == true) {
+      _showSnack('Nota salva no vault.');
+      return true;
+    }
+    return false;
+  }
+
+  Future<void> _openBrainDialog() async {
+    if (!mounted) return;
+    var notes = List<Map<String, dynamic>>.from(_brainNotes);
+    var graph = Map<String, dynamic>.from(_brainGraph);
+    var suggestions = List<Map<String, dynamic>>.from(_brainSuggestions);
+    Map<String, dynamic>? selectedNote;
+    var backlinks = <String>[];
+    var selectedSuggestions = <Map<String, dynamic>>[];
+    var loadingNote = false;
+    var bootstrapped = false;
+    var sheetAlive = true;
+
+    List<String> extractBacklinks(dynamic value) {
+      if (value is! List) return const [];
+      return value
+          .map((item) => item.toString().trim())
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+
+    Future<void> loadNote(StateSetter setModalState, String noteRef) async {
+      final normalized = noteRef.trim();
+      if (normalized.isEmpty) return;
+      setModalState(() {
+        loadingNote = true;
+      });
+      try {
+        final note = await _api.getBrainNote(normalized);
+        final backlinkPayload = await _api.getBrainBacklinks(normalized);
+        final noteSuggestions =
+            await _api.getBrainSuggestions(noteRef: normalized, limit: 8);
+        if (!mounted || !sheetAlive) return;
+        setModalState(() {
+          selectedNote = note;
+          backlinks = extractBacklinks(backlinkPayload['backlinks']);
+          selectedSuggestions = noteSuggestions;
+          loadingNote = false;
+        });
+      } catch (error) {
+        if (!mounted || !sheetAlive) return;
+        setModalState(() {
+          loadingNote = false;
+        });
+        _showSnack(_humanizeApiError(error));
+      }
+    }
+
+    Future<void> refreshVault(StateSetter setModalState) async {
+      try {
+        final latestNotes = await _api.getBrainNotes(limit: 8);
+        final latestSuggestions = await _api.getBrainSuggestions(limit: 8);
+        final latestGraph = await _api.getBrainGraph();
+        if (!mounted || !sheetAlive) return;
+        setState(() {
+          _brainNotes = latestNotes;
+          _brainSuggestions = latestSuggestions;
+          _brainGraph = latestGraph;
+        });
+        setModalState(() {
+          notes = latestNotes;
+          suggestions = latestSuggestions;
+          graph = latestGraph;
+        });
+        final ref = selectedNote?['title']?.toString().trim() ??
+            (latestNotes.isNotEmpty
+                ? latestNotes.first['title']?.toString().trim() ?? ''
+                : '');
+        if (ref.isNotEmpty) {
+          await loadNote(setModalState, ref);
+        }
+      } catch (error) {
+        if (!mounted || !sheetAlive) return;
+        _showSnack(_humanizeApiError(error));
+      }
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: const Color(0xFF03111B),
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            if (!bootstrapped) {
+              bootstrapped = true;
+              if (notes.isNotEmpty) {
+                final initialRef =
+                    notes.first['title']?.toString().trim() ?? '';
+                if (initialRef.isNotEmpty) {
+                  Future.microtask(() => loadNote(setModalState, initialRef));
+                }
+              }
+            }
+
+            final maxHeight = MediaQuery.sizeOf(context).height * 0.9;
+            return SafeArea(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: maxHeight),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                  child: NovaBrainBoard(
+                    notes: notes,
+                    graph: graph,
+                    suggestions: suggestions,
+                    selectedNote: selectedNote,
+                    backlinks: backlinks,
+                    selectedSuggestions: selectedSuggestions,
+                    loadingNote: loadingNote,
+                    onRefresh: () => refreshVault(setModalState),
+                    onCreateNote: () async {
+                      final created = await _openCreateBrainNoteDialog();
+                      if (created && sheetAlive) {
+                        await refreshVault(setModalState);
+                      }
+                    },
+                    onSelectNote: (noteRef) => loadNote(setModalState, noteRef),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    sheetAlive = false;
+  }
+
   BoxDecoration get _boxDeco {
     return BoxDecoration(
       color: const Color(0x4D03192A),
@@ -4057,6 +4338,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       showDragHandle: true,
       builder: (context) {
         final actions = <({String label, IconData icon, VoidCallback onTap})>[
+          (
+            label: 'Cerebro',
+            icon: Icons.hub_outlined,
+            onTap: () {
+              _openBrainDialog();
+            }
+          ),
           (
             label: 'Ensinar',
             icon: Icons.school_outlined,
@@ -4293,6 +4581,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                       ?.toInt() ??
                                   0),
                           memoryItems: _memoryRailItems(),
+                          brainItems: _brainRailItems(),
+                          brainNotesTotal:
+                              (_brainGraph['total_notes'] as num?)?.toInt() ??
+                                  _brainNotes.length,
+                          brainSuggestionsTotal: _brainSuggestions.length,
                           toolNames: _jarvisTools
                               .map((item) =>
                                   item['name']?.toString().trim() ?? '')
@@ -4301,6 +4594,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           voicePhase:
                               _voiceStatus['phase']?.toString().trim() ??
                                   'planned',
+                          onOpenBrainDialog: () {
+                            _openBrainDialog();
+                          },
                           compressed: compressed,
                         ),
                       ),

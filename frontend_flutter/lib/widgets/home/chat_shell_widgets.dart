@@ -274,8 +274,12 @@ class NovaWorkspaceRail extends StatelessWidget {
     required this.jarvisMode,
     required this.toolsTotal,
     required this.memoryItems,
+    required this.brainItems,
+    required this.brainNotesTotal,
+    required this.brainSuggestionsTotal,
     required this.toolNames,
     required this.voicePhase,
+    required this.onOpenBrainDialog,
     this.compressed = false,
   });
 
@@ -291,8 +295,12 @@ class NovaWorkspaceRail extends StatelessWidget {
   final String jarvisMode;
   final int toolsTotal;
   final List<String> memoryItems;
+  final List<String> brainItems;
+  final int brainNotesTotal;
+  final int brainSuggestionsTotal;
   final List<String> toolNames;
   final String voicePhase;
+  final VoidCallback onOpenBrainDialog;
   final bool compressed;
 
   @override
@@ -536,6 +544,57 @@ class NovaWorkspaceRail extends StatelessWidget {
                           )
                           .toList(),
                     ),
+            ),
+            SizedBox(height: gap),
+            _NovaRailCard(
+              title: 'Vault Obsidian',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _NovaSignalChip(
+                        label: '$brainNotesTotal notas',
+                        active: brainNotesTotal > 0,
+                      ),
+                      _NovaSignalChip(
+                        label: '$brainSuggestionsTotal sugestoes',
+                        active: brainSuggestionsTotal > 0,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    brainItems.isEmpty
+                        ? 'O vault ainda esta vazio. Conforme a NOVA aprende, as notas, conexoes e backlinks aparecem aqui.'
+                        : brainItems.take(3).join('\n'),
+                    style: const TextStyle(
+                      color: Color(0xFFD8EAF7),
+                      fontSize: 13.5,
+                      height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: onOpenBrainDialog,
+                      icon: const Icon(Icons.hub_outlined, size: 18),
+                      label: const Text('Abrir vault'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFD8F7FF),
+                        side: const BorderSide(color: Color(0xFF2C8BB0)),
+                        backgroundColor: const Color(0x33132E3C),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             SizedBox(height: gap),
             _NovaRailCard(

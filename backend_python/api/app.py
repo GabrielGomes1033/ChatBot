@@ -9,6 +9,7 @@ except Exception:
 
 from core.api_profile import NOVA_API_VERSION, build_api_health
 from .routes_actions import router as actions_router
+from .routes_brain import router as brain_router
 from .routes_chat import router as chat_router
 from .routes_compat import router as compat_router
 from .routes_location import router as location_router
@@ -55,6 +56,8 @@ def create_app():
 
     app.include_router(chat_router)
     app.include_router(memory_router)
+    if brain_router is not None:
+        app.include_router(brain_router)
     app.include_router(actions_router)
     app.include_router(voice_router)
 

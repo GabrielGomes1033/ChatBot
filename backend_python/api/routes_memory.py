@@ -8,6 +8,7 @@ except Exception:
     Depends = None
 
 from .dependencies import rate_limit
+from core.brain_vault import BrainVault
 from core.orchestrator import get_default_orchestrator
 from models.schemas import MemoryCreateRequest, MemorySearchResponse
 
@@ -46,6 +47,7 @@ if APIRouter is not None:
             scope=req.scope,
             source="api_memory",
         )
+        BrainVault().save_memory_note(req.category, req.content, user_id=req.user_id)
         return {"ok": True, "item": item}
 
 else:

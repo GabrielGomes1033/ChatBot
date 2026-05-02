@@ -6,6 +6,7 @@ import re
 from typing import Any
 
 from core.assistente_plus import adicionar_lembrete, formatar_resposta_pesquisa
+from core.brain_vault import BrainVault
 from core.google_calendar import create_google_calendar_event, parse_calendar_event_request
 from core.intent_classifier import IntentDecision, classify_intent
 from core.respostas import detectar_intencao as detect_response_intent, responder
@@ -289,6 +290,26 @@ def _merge_memory_items(*groups: list[dict[str, Any]], limit: int = 10) -> list[
     return merged
 
 
+def _brain_note_items(notes: list[dict[str, Any]], *, user_id: str) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": f"brain:{item.get('slug', '')}",
+            "user_id": str(user_id or "").strip() or "default",
+            "scope": "vault",
+            "category": "brain_note",
+            "content": f"{item.get('title', '')}: {item.get('excerpt', '')}".strip(": ").strip(),
+            "importance": max(1, min(5, int(item.get("backlinks_count", 0) or 1))),
+            "source": "brain_vault",
+            "created_at": str(item.get("created_at", "") or ""),
+            "updated_at": str(item.get("updated_at", "") or ""),
+            "path": str(item.get("path", "") or ""),
+            "tags": list(item.get("tags", []) or []),
+            "links": list(item.get("links", []) or []),
+        }
+        for item in notes
+    ]
+
+
 def _should_use_semantic_context(text: str) -> bool:
     terms = _terms(text)
     if len(terms) >= 2:
@@ -416,8 +437,12 @@ class RuleBasedLLM:
         return style_response("Ferramenta executada.", modo=mode)
 
 
-def build_default_tools(memory_store: MemoryStore) -> ToolsRegistry:
+def build_default_tools(
+    memory_store: MemoryStore,
+    brain_vault: BrainVault | None = None,
+) -> ToolsRegistry:
     registry = ToolsRegistry()
+    brain_vault = brain_vault or BrainVault()
 
     def search_web(query: str, user_id: str = "default") -> dict[str, Any]:
         result = integration_search_web(query)
@@ -431,6 +456,21 @@ def build_default_tools(memory_store: MemoryStore) -> ToolsRegistry:
                     importance=2,
                     scope="sessao",
                     source="search_web",
+                )
+                related_links = [
+                    str(item.get("title", "")).strip()
+                    for item in (result.get("results") or [])
+                    if isinstance(item, dict) and str(item.get("title", "")).strip()
+                ]
+                brain_vault.save_research_note(
+                    query,
+                    summary,
+                    sources=[
+                        str(src).strip()
+                        for src in (result.get("sources") or [])
+                        if str(src).strip()
+                    ],
+                    related_links=related_links[:4],
                 )
         return result
 
@@ -448,11 +488,15 @@ def build_default_tools(memory_store: MemoryStore) -> ToolsRegistry:
             scope="longo_prazo",
             source="save_memory",
         )
+        brain_vault.save_memory_note(category, content, user_id=user_id)
         return {"ok": True, **saved}
 
     def search_memory(query: str, user_id: str = "default") -> dict[str, Any]:
         items = memory_store.search(user_id=user_id, query=query, limit=6)
-        return {"ok": True, "query": query, "items": items, "total": len(items)}
+        brain_items_raw = brain_vault.search_notes(query, limit=4)
+        brain_items = _brain_note_items(brain_items_raw, user_id=user_id)
+        merged = items + brain_items
+        return {"ok": True, "query": query, "items": merged, "total": len(merged)}
 
     def create_reminder(title: str, when: str = "", user_id: str = "default") -> dict[str, Any]:
         out = adicionar_lembrete(title, quando=when)
@@ -543,12 +587,14 @@ class NovaOrchestrator:
         *,
         profile_store: ProfileStore | None = None,
         vector_store: VectorStore | None = None,
+        brain_vault: BrainVault | None = None,
     ) -> None:
         self.memory = memory
         self.tools = tools
         self.llm = llm
         self.profile_store = profile_store or ProfileStore(memory)
         self.vector_store = vector_store or VectorStore(memory)
+        self.brain_vault = brain_vault or BrainVault()
         self._last_search_by_user: dict[str, dict[str, Any]] = {}
         self._last_intent_by_user: dict[str, str] = {}
         self._pending_translation_by_user: dict[str, dict[str, Any]] = {}
@@ -644,6 +690,11 @@ class NovaOrchestrator:
                 text=assistant_text,
                 metadata={"source": "assistant", "category": "contexto"},
             )
+        if user_text or assistant_text:
+            try:
+                self.brain_vault.append_chat_turn(user_id, user_text, assistant_text)
+            except Exception:
+                pass
 
     def _build_response_context(
         self,
@@ -672,10 +723,23 @@ class NovaOrchestrator:
     ) -> list[dict[str, Any]]:
         uid = str(user_id or "").strip() or "default"
         recent = self.memory.search_recent(uid, limit=recent_limit)
+        brain_context = self._brain_context_items(uid, text, limit=3)
         if not _should_use_semantic_context(text):
-            return recent
+            return _merge_memory_items(brain_context, recent, limit=recent_limit)
         semantic = self.vector_store.search(uid, text, limit=semantic_limit)
-        return _merge_memory_items(semantic, recent, limit=recent_limit + semantic_limit)
+        return _merge_memory_items(
+            brain_context,
+            semantic,
+            recent,
+            limit=recent_limit + semantic_limit,
+        )
+
+    def _brain_context_items(self, user_id: str, text: str, *, limit: int = 3) -> list[dict[str, Any]]:
+        query = _normalize_text(text)
+        if len(query) < 3:
+            return []
+        notes = self.brain_vault.search_notes(query, limit=limit)
+        return _brain_note_items(notes, user_id=user_id)
 
     def _remember_last_intent(
         self,
@@ -1033,6 +1097,24 @@ class NovaOrchestrator:
                 text=f"Pesquisa web sobre {result.get('query', '')}: {result.get('summary', '')}",
                 metadata={"source": "search_web", "category": "pesquisa"},
             )
+            try:
+                related_links = [
+                    str(item.get("title", "")).strip()
+                    for item in (result.get("results") or [])
+                    if isinstance(item, dict) and str(item.get("title", "")).strip()
+                ]
+                self.brain_vault.save_research_note(
+                    str(result.get("query", "")).strip() or prompt_text or tool,
+                    str(result.get("summary", "")).strip(),
+                    sources=[
+                        str(src).strip()
+                        for src in (result.get("sources") or [])
+                        if str(src).strip()
+                    ],
+                    related_links=related_links[:4],
+                )
+            except Exception:
+                pass
         if tool == "schedule_calendar_event" and bool(result.get("ok")):
             self.vector_store.index_text(
                 user_id=uid,
@@ -1142,9 +1224,11 @@ def get_default_orchestrator() -> NovaOrchestrator:
     global _DEFAULT_ORCHESTRATOR
     if _DEFAULT_ORCHESTRATOR is None:
         memory = MemoryStore()
+        brain_vault = BrainVault()
         _DEFAULT_ORCHESTRATOR = NovaOrchestrator(
             memory=memory,
-            tools=build_default_tools(memory),
+            tools=build_default_tools(memory, brain_vault=brain_vault),
             llm=RuleBasedLLM(),
+            brain_vault=brain_vault,
         )
     return _DEFAULT_ORCHESTRATOR

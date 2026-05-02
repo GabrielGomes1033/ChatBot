@@ -172,6 +172,7 @@ class ChatApiService {
             path.startsWith('/help') ||
             path.startsWith('/memory/subjects') ||
             path.startsWith('/memory/recent') ||
+            path.startsWith('/brain') ||
             path.startsWith('/voice/status'))) {
       return 'Endpoint não encontrado nesse backend. '
           'A API está desatualizada para este recurso. '
@@ -795,6 +796,80 @@ class ChatApiService {
     final payload = await _requestJson(
       'GET',
       '/memory/search?user_id=${Uri.encodeComponent(userId)}&query=${Uri.encodeComponent(query)}&limit=$lim',
+    );
+    final items = payload['items'];
+    if (items is! List) return [];
+    return items
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getBrainNotes({
+    String query = '',
+    int limit = 12,
+  }) async {
+    final lim = limit.clamp(1, 200);
+    final payload = await _requestJson(
+      'GET',
+      '/brain/notes?query=${Uri.encodeComponent(query)}&limit=$lim',
+    );
+    final items = payload['items'];
+    if (items is! List) return [];
+    return items
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> getBrainNote(String noteRef) async {
+    final payload = await _requestJson(
+        'GET', '/brain/notes/${Uri.encodeComponent(noteRef)}');
+    final note = payload['note'];
+    if (note is Map<String, dynamic>) return note;
+    if (note is Map) return Map<String, dynamic>.from(note);
+    return {};
+  }
+
+  Future<Map<String, dynamic>> saveBrainNote({
+    required String title,
+    required String content,
+    String folder = '',
+  }) async {
+    final payload = await _requestJson(
+      'POST',
+      '/brain/notes',
+      body: {
+        'title': title,
+        'content': content,
+        'folder': folder,
+      },
+    );
+    final note = payload['note'];
+    if (note is Map<String, dynamic>) return note;
+    if (note is Map) return Map<String, dynamic>.from(note);
+    return {};
+  }
+
+  Future<Map<String, dynamic>> getBrainBacklinks(String noteRef) {
+    return _requestJson(
+      'GET',
+      '/brain/backlinks/${Uri.encodeComponent(noteRef)}',
+    );
+  }
+
+  Future<Map<String, dynamic>> getBrainGraph() {
+    return _requestJson('GET', '/brain/graph');
+  }
+
+  Future<List<Map<String, dynamic>>> getBrainSuggestions({
+    String noteRef = '',
+    int limit = 12,
+  }) async {
+    final lim = limit.clamp(1, 200);
+    final payload = await _requestJson(
+      'GET',
+      '/brain/suggestions?note_ref=${Uri.encodeComponent(noteRef)}&limit=$lim',
     );
     final items = payload['items'];
     if (items is! List) return [];

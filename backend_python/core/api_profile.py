@@ -5,7 +5,7 @@ from typing import Any
 
 from core.api_config import build_local_base_url
 
-NOVA_API_VERSION = "2.1.0"
+NOVA_API_VERSION = "2.3.0"
 
 
 def _agora() -> str:
@@ -26,6 +26,7 @@ def build_api_health(*, entrypoint: str) -> dict[str, Any]:
         "capabilities": {
             "chat": True,
             "memory": True,
+            "brain_vault": True,
             "semantic_memory": True,
             "knowledge": True,
             "actions": True,
@@ -57,6 +58,9 @@ def build_api_health(*, entrypoint: str) -> dict[str, Any]:
             "/jarvis/status",
             "/actions/tools",
             "/memory/recent",
+            "/brain/notes",
+            "/brain/graph",
+            "/brain/suggestions",
             "/voice/status",
             "/documents/analyze",
             "/ops/status",
