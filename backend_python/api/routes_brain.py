@@ -15,11 +15,15 @@ from models.schemas import (
     BrainSearchResponse,
 )
 
-from .dependencies import rate_limit
+from .dependencies import rate_limit, require_token
 
 
 if APIRouter is not None:
-    router = APIRouter(prefix="/brain", tags=["brain"], dependencies=[Depends(rate_limit(120))])
+    router = APIRouter(
+        prefix="/brain",
+        tags=["brain"],
+        dependencies=[Depends(rate_limit(120)), Depends(require_token())],
+    )
 
     @router.get("/notes", response_model=BrainSearchResponse)
     def list_brain_notes(

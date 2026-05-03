@@ -21,11 +21,11 @@ Esta pasta organiza o projeto por plataforma sem mover o código atual.
 - Desktop: `bash platforms/desktop/run.sh`
 - Backend: `bash platforms/backend/run.sh`
 
-- cd /home/dev-0/Documentos/ChatBot
+- cd /home/dev-0/Documentos/N.O.V.A
   pkill -f "backend_python/api_server.py" || true
   bash platforms/backend/run.sh
 
--  cd /home/dev-0/Documentos/ChatBot
+-  cd /home/dev-0/Documentos/N.O.V.A
    pkill -f "flutter run -d web-server" || true
    bash platforms/web/run.sh
 

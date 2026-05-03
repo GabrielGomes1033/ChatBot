@@ -106,6 +106,62 @@ class ApiAuthContractTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["ok"])
 
+    def test_sensitive_routes_require_token_after_hardening(self) -> None:
+        protected = [
+            ("GET", "/actions/tools"),
+            ("GET", "/memory/recent?user_id=frontend"),
+            ("GET", "/brain/graph"),
+            ("GET", "/knowledge"),
+            ("GET", "/observability/summary"),
+            ("GET", "/reminders"),
+            ("GET", "/location/current"),
+            ("POST", "/voice/neural"),
+        ]
+
+        with self._build_client("contrato-token"), TestClient(create_app()) as client:
+            for method, path in protected:
+                response = client.request(method, path, json={})
+                self.assertEqual(
+                    response.status_code,
+                    401,
+                    msg=f"Route should be protected: {method} {path}",
+                )
+
+    def test_sensitive_routes_accept_valid_token_after_hardening(self) -> None:
+        headers = {"X-API-Key": "contrato-token"}
+
+        with self._build_client("contrato-token"), TestClient(create_app()) as client:
+            tools = client.get("/actions/tools", headers=headers)
+            self.assertEqual(tools.status_code, 200)
+            self.assertTrue(tools.json()["ok"])
+
+            memories = client.get("/memory/recent?user_id=frontend", headers=headers)
+            self.assertEqual(memories.status_code, 200)
+            self.assertTrue(memories.json()["ok"])
+
+            brain = client.get("/brain/graph", headers=headers)
+            self.assertEqual(brain.status_code, 200)
+            self.assertTrue(brain.json()["ok"])
+
+    def test_cors_can_be_restricted_by_env(self) -> None:
+        env = {
+            "NOVA_API_TOKEN": "contrato-token",
+            "NOVA_API_TOKENS": "",
+            "NOVA_API_CORS_ORIGINS": "https://app.example.com,https://admin.example.com",
+        }
+
+        with patch.dict(os.environ, env, clear=False), TestClient(create_app()) as client:
+            response = client.options(
+                "/voice/status",
+                headers={
+                    "Origin": "https://app.example.com",
+                    "Access-Control-Request-Method": "GET",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["access-control-allow-origin"], "https://app.example.com")
+
 
 if __name__ == "__main__":
     unittest.main()

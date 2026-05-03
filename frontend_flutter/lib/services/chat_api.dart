@@ -37,12 +37,20 @@ class ApiHttpException implements Exception {
 }
 
 class ChatApiService {
+  static const String _definedApiToken = String.fromEnvironment(
+    'NOVA_API_TOKEN',
+    defaultValue: '',
+  );
+
   ChatApiService({
     String? baseUrl,
     String? apiToken,
     ApiHttpExecutor? httpExecutor,
   })  : _endpoint = ApiEndpointConfig.resolve(explicitBaseUrl: baseUrl),
-        _apiToken = _normalizeApiToken(apiToken),
+        _apiToken = _normalizeApiToken(
+          apiToken,
+          fallback: _definedApiToken,
+        ),
         _httpExecutor = httpExecutor;
 
   static const Duration _requestTimeout = Duration(seconds: 18);
@@ -60,7 +68,10 @@ class ChatApiService {
   }
 
   void updateApiToken(String? apiToken) {
-    _apiToken = _normalizeApiToken(apiToken);
+    _apiToken = _normalizeApiToken(
+      apiToken,
+      fallback: _definedApiToken,
+    );
   }
 
   void updateConnection({
@@ -73,8 +84,13 @@ class ChatApiService {
 
   Uri _uriForBase(String baseUrl, String path) => Uri.parse('$baseUrl$path');
 
-  static String _normalizeApiToken(String? raw) {
-    return (raw ?? '').trim();
+  static String _normalizeApiToken(
+    String? raw, {
+    String fallback = '',
+  }) {
+    final normalized = (raw ?? '').trim();
+    if (normalized.isNotEmpty) return normalized;
+    return fallback.trim();
   }
 
   Map<String, String> _buildHeaders() {

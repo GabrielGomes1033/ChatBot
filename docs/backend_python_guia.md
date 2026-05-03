@@ -53,7 +53,7 @@ backend_python/
    - imprime resposta;
    - tenta falar com TTS (`falar`).
 
-Arquivo: [main.py](/home/dev-0/Documentos/ChatBot/backend_python/main.py)
+Arquivo: [main.py](/home/dev-0/Documentos/N.O.V.A/backend_python/main.py)
 
 ## 4) `main.py` explicado ponto a ponto
 
@@ -89,7 +89,7 @@ No `main()`:
 
 ## 5) Motor de linguagem (`core/respostas.py`)
 
-Arquivo: [respostas.py](/home/dev-0/Documentos/ChatBot/backend_python/core/respostas.py)
+Arquivo: [respostas.py](/home/dev-0/Documentos/N.O.V.A/backend_python/core/respostas.py)
 
 Esse e o coracao da NOVA. Ele concentra:
 1. Deteccao de intencao.
@@ -122,7 +122,7 @@ Isso deixa o bot mais adaptavel sem perder fallback.
 
 ## 6) Memoria persistente (`core/memoria.py`)
 
-Arquivo: [memoria.py](/home/dev-0/Documentos/ChatBot/backend_python/core/memoria.py)
+Arquivo: [memoria.py](/home/dev-0/Documentos/N.O.V.A/backend_python/core/memoria.py)
 
 Guarda perfil simples do usuario com persistencia protegida:
 - nome
@@ -139,7 +139,7 @@ Funcoes principais:
 
 ## 6.1) Seguranca (`core/seguranca.py`)
 
-Arquivo: [seguranca.py](/home/dev-0/Documentos/ChatBot/backend_python/core/seguranca.py)
+Arquivo: [seguranca.py](/home/dev-0/Documentos/N.O.V.A/backend_python/core/seguranca.py)
 
 Centraliza:
 1. Criptografia de dados em repouso com Fernet (quando disponivel).
@@ -148,7 +148,7 @@ Centraliza:
 
 ## 6.2) Admin (`core/admin.py`)
 
-Arquivo: [admin.py](/home/dev-0/Documentos/ChatBot/backend_python/core/admin.py)
+Arquivo: [admin.py](/home/dev-0/Documentos/N.O.V.A/backend_python/core/admin.py)
 
 Responsavel por:
 1. Login admin.
@@ -158,7 +158,7 @@ Responsavel por:
 
 ## 6.3) Despertador inteligente (`core/despertador.py`)
 
-Arquivo: [despertador.py](/home/dev-0/Documentos/ChatBot/backend_python/core/despertador.py)
+Arquivo: [despertador.py](/home/dev-0/Documentos/N.O.V.A/backend_python/core/despertador.py)
 
 Responsavel por:
 1. Agendar disparo diário em horário configurado.
@@ -168,7 +168,7 @@ Responsavel por:
 
 ## 6.4) JARVIS fase 2 (`core/jarvis_fase2.py`)
 
-Arquivo: [jarvis_fase2.py](/home/dev-0/Documentos/ChatBot/backend_python/core/jarvis_fase2.py)
+Arquivo: [jarvis_fase2.py](/home/dev-0/Documentos/N.O.V.A/backend_python/core/jarvis_fase2.py)
 
 Responsavel por:
 1. Runtime contínuo em background.
@@ -178,7 +178,7 @@ Responsavel por:
 
 ## 6.5) Backup Google Drive (`core/backup_drive.py`)
 
-Arquivo: [backup_drive.py](/home/dev-0/Documentos/ChatBot/backend_python/core/backup_drive.py)
+Arquivo: [backup_drive.py](/home/dev-0/Documentos/N.O.V.A/backend_python/core/backup_drive.py)
 
 Responsavel por:
 1. Status do backup secundário.
@@ -187,7 +187,7 @@ Responsavel por:
 
 ## 7) Caminhos de dados (`core/caminhos.py`)
 
-Arquivo: [caminhos.py](/home/dev-0/Documentos/ChatBot/backend_python/core/caminhos.py)
+Arquivo: [caminhos.py](/home/dev-0/Documentos/N.O.V.A/backend_python/core/caminhos.py)
 
 `pasta_dados_app()`:
 1. Descobre raiz do backend.
@@ -198,7 +198,7 @@ Resumo: esse modulo evita hardcode de caminho espalhado no projeto.
 
 ## 8) Pesquisa externa (`core/pesquisa.py`)
 
-Arquivo: [pesquisa.py](/home/dev-0/Documentos/ChatBot/backend_python/core/pesquisa.py)
+Arquivo: [pesquisa.py](/home/dev-0/Documentos/N.O.V.A/backend_python/core/pesquisa.py)
 
 Responsabilidade: buscar resumo curto na Wikipedia.
 
@@ -213,7 +213,7 @@ Saida: dict com `titulo`, `resumo`, `fonte`, `url`.
 
 ## 9) Personalidade e estilo (`core/personalidade.py`)
 
-Arquivo: [personalidade.py](/home/dev-0/Documentos/ChatBot/backend_python/core/personalidade.py)
+Arquivo: [personalidade.py](/home/dev-0/Documentos/N.O.V.A/backend_python/core/personalidade.py)
 
 Controla "tom de voz" por modo:
 - normal
@@ -230,8 +230,8 @@ Como funciona:
 ## 10) Voz (TTS) (`core/voz.py` + `core/voz_worker.py`)
 
 Arquivos:
-- [voz.py](/home/dev-0/Documentos/ChatBot/backend_python/core/voz.py)
-- [voz_worker.py](/home/dev-0/Documentos/ChatBot/backend_python/core/voz_worker.py)
+- [voz.py](/home/dev-0/Documentos/N.O.V.A/backend_python/core/voz.py)
+- [voz_worker.py](/home/dev-0/Documentos/N.O.V.A/backend_python/core/voz_worker.py)
 
 ### Por que tem 2 arquivos?
 
@@ -253,13 +253,13 @@ Processo separado reduz travamento da thread principal do chat.
 
 ## 11) Compatibilidade (`core/logica.py`)
 
-Arquivo: [logica.py](/home/dev-0/Documentos/ChatBot/backend_python/core/logica.py)
+Arquivo: [logica.py](/home/dev-0/Documentos/N.O.V.A/backend_python/core/logica.py)
 
 Esse modulo so reexporta `responder` para imports antigos nao quebrarem.
 
 ## 12) Gerador de base de respostas (`app/gerar_modos.py`)
 
-Arquivo: [gerar_modos.py](/home/dev-0/Documentos/ChatBot/backend_python/app/gerar_modos.py)
+Arquivo: [gerar_modos.py](/home/dev-0/Documentos/N.O.V.A/backend_python/app/gerar_modos.py)
 
 Script utilitario para montar `core/modos.txt` em massa.
 
@@ -273,7 +273,7 @@ Observacao: e um gerador de dataset textual, nao roda no fluxo principal do chat
 
 ## 13) Dependencias (`requirements.txt`)
 
-Arquivo: [requirements.txt](/home/dev-0/Documentos/ChatBot/backend_python/requirements.txt)
+Arquivo: [requirements.txt](/home/dev-0/Documentos/N.O.V.A/backend_python/requirements.txt)
 
 Principais usadas hoje:
 - `requests`: pesquisa Wikipedia.

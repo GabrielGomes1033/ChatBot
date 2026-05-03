@@ -643,7 +643,9 @@ def processar_mensagem(user):
         except OPTIONAL_RUNTIME_ERRORS as exc:
             _log_warning("trace_record_fail", exc, trace_event=evento)
         try:
-            brain_user = str(CONTEXTO.get("nome_usuario", "") or "legacy-chat").strip() or "legacy-chat"
+            brain_user = (
+                str(CONTEXTO.get("nome_usuario", "") or "legacy-chat").strip() or "legacy-chat"
+            )
             _BRAIN_VAULT.append_chat_turn(brain_user, user, msg)
         except OPTIONAL_RUNTIME_ERRORS as exc:
             _log_warning("brain_chat_turn_fail", exc, user_id=brain_user)

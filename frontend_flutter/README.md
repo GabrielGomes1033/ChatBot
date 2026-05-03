@@ -8,8 +8,9 @@ O app tenta descobrir o backend nesta ordem:
 
 1. URL salva localmente nas configuracoes do app (`Conexao com API`)
 2. `--dart-define=NOVA_API_URL=...`
-3. Auto-detect por plataforma usando `--dart-define=NOVA_API_PORT=...` quando informado
-4. Fallback automatico entre candidatos locais compativeis, quando nao existe URL manual definida
+3. `--dart-define=NOVA_API_TOKEN=...` para rotas protegidas
+4. Auto-detect por plataforma usando `--dart-define=NOVA_API_PORT=...` quando informado
+5. Fallback automatico entre candidatos locais compativeis, quando nao existe URL manual definida
 
 Defaults atuais:
 
@@ -46,6 +47,14 @@ flutter pub get
 flutter run --dart-define=NOVA_API_URL=http://192.168.0.25:8000
 ```
 
+Se o backend estiver com token ativado:
+
+```bash
+flutter run \
+  --dart-define=NOVA_API_URL=http://192.168.0.25:8000 \
+  --dart-define=NOVA_API_TOKEN=seu-token
+```
+
 Se voce estiver usando uma porta local diferente da padrao e quiser manter o auto-detect:
 
 ```bash
@@ -53,6 +62,7 @@ flutter run --dart-define=NOVA_API_PORT=8119
 ```
 
 Tambem e possivel abrir o app e definir a URL manualmente em `Configuracoes > Conexao com API`.
+Se preferir, o token tambem pode ser salvo nas configuracoes locais do app.
 
 ## Checks uteis
 

@@ -27,6 +27,7 @@ import '../services/reminder_notifications.dart';
 import '../services/secure_secrets_service.dart';
 import '../services/speech_formatter.dart';
 import '../services/system_scan_service.dart';
+import '../theme/colors.dart';
 import '../widgets/home/brain_widgets.dart';
 import '../widgets/home/chat_shell_widgets.dart';
 import '../widgets/home/dialog_widgets.dart';
@@ -74,7 +75,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     'telegram_chat_id': '',
     'api_token': '',
     'api_base_url': '',
-    'calendar_email': 'gabrielgomes151211@gmail.com',
+    'calendar_email': '',
     'autonomia_ativa': true,
     'autonomia_nivel_risco': 'alto',
     'autonomia_liberdade': 'alta',
@@ -1499,7 +1500,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   String _preferredCalendarEmail() {
     final configured = _config['calendar_email']?.toString().trim() ?? '';
     if (configured.isNotEmpty) return configured;
-    return 'gabrielgomes151211@gmail.com';
+    return '';
+  }
+
+  String _preferredCalendarLabel() {
+    final configured = _preferredCalendarEmail();
+    if (configured.isNotEmpty) return configured;
+    return 'agenda padrao do aparelho';
   }
 
   String _formatCalendarDateTime(DateTime value) {
@@ -1562,7 +1569,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ? calendarOwner
           : (calendarName.isNotEmpty
               ? calendarName
-              : _preferredCalendarEmail());
+              : _preferredCalendarLabel());
       return 'Evento criado no calendario do celular e sincronizado pela agenda $destino: $title em ${_formatCalendarDateTime(startAt)}.';
     }
 
@@ -1611,7 +1618,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         : <String>[];
     final buffer = StringBuffer()
       ..writeln(
-        'Posso agendar isso direto na Google Agenda do seu celular (${_preferredCalendarEmail()}). Responda sim ou nao.',
+        'Posso agendar isso direto na Google Agenda do seu celular (${_preferredCalendarLabel()}). Responda sim ou nao.',
       )
       ..writeln(
         'Evento: ${parsed['title']} em ${_formatCalendarDateTime(startAt)}.',
@@ -3446,8 +3453,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       text: _config['api_base_url']?.toString() ?? '',
     );
     final calendarEmailController = TextEditingController(
-      text: _config['calendar_email']?.toString() ??
-          'gabrielgomes151211@gmail.com',
+      text: _config['calendar_email']?.toString() ?? '',
     );
     bool vozAtiva = _config['voz_ativa'] == true;
     bool vozNeuralHybrid = _config['voice_neural_hybrid'] != false;
@@ -3742,7 +3748,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           const SizedBox(height: 6),
                           NovaInput(
                             controller: calendarEmailController,
-                            hintText: 'gabrielgomes151211@gmail.com',
+                            hintText: 'voce@empresa.com',
                           ),
                           const SizedBox(height: 8),
                           const Text(
@@ -4507,6 +4513,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.novaColors;
     final screenWidth = MediaQuery.sizeOf(context).width;
     final shellMaxWidth = screenWidth >= 1500
         ? 860.0
@@ -4516,7 +4523,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 ? 680.0
                 : (screenWidth >= 600 ? 560.0 : screenWidth)));
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: colors.background,
       body: Stack(
         children: [
           const NovaGridBackground(),

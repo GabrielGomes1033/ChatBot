@@ -25,6 +25,7 @@ git push
    - `NOVA_ADMIN_USER`
    - `NOVA_ADMIN_PASSWORD`
    - `NOVA_API_TOKEN` ou `NOVA_API_TOKENS` para liberar rotas protegidas
+   - `NOVA_API_CORS_ORIGINS` com a URL real do frontend web em produção
 6. Clique em Deploy
 
 Quando subir, você terá uma URL como:
@@ -49,13 +50,17 @@ Esperado:
 ```bash
 cd /home/dev-0/Documentos/N.O.V.A/frontend_flutter
 flutter pub get
-flutter run --dart-define=NOVA_API_URL=https://sua-nova-api.onrender.com
+flutter run \
+  --dart-define=NOVA_API_URL=https://sua-nova-api.onrender.com \
+  --dart-define=NOVA_API_TOKEN=seu-token
 ```
 
 ## 5) Gerar APK final sem notebook
 
 ```bash
-flutter build apk --release --dart-define=NOVA_API_URL=https://sua-nova-api.onrender.com
+flutter build apk --release \
+  --dart-define=NOVA_API_URL=https://sua-nova-api.onrender.com \
+  --dart-define=NOVA_API_TOKEN=seu-token
 ```
 
 Instale o APK no celular. Depois disso, ele funciona sem precisar do notebook.

@@ -33,7 +33,9 @@ Também tem uma comunidade grande e muitas bibliotecas prontas.
 
         summary = payload["summary"]
         self.assertIn("Python é uma linguagem de programação", summary)
-        self.assertIn("automação, análise de dados, desenvolvimento web e inteligência artificial", summary)
+        self.assertIn(
+            "automação, análise de dados, desenvolvimento web e inteligência artificial", summary
+        )
         self.assertIn("comunidade grande e muitas bibliotecas prontas", summary)
 
 

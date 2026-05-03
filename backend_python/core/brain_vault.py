@@ -130,7 +130,9 @@ class BrainVault:
     def _strip_wikilinks(self, content: str) -> str:
         return WIKILINK_RE.sub(" ", str(content or ""))
 
-    def _find_unlinked_mentions(self, source_note: dict[str, Any], notes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _find_unlinked_mentions(
+        self, source_note: dict[str, Any], notes: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         content = str(source_note.get("content", "") or "")
         if not content:
             return []
@@ -205,7 +207,9 @@ class BrainVault:
             "path": self._relative_path(path),
             "exists": True,
             "links": links,
-            "links_normalized": [_normalize_note_ref(item) for item in links if _normalize_note_ref(item)],
+            "links_normalized": [
+                _normalize_note_ref(item) for item in links if _normalize_note_ref(item)
+            ],
             "tags": tags,
             "word_count": len(content.split()),
             "updated_at": datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds"),
@@ -216,7 +220,9 @@ class BrainVault:
             note["content"] = content
         return note
 
-    def list_notes(self, query: str = "", limit: int = 50, *, include_content: bool = False) -> list[dict]:
+    def list_notes(
+        self, query: str = "", limit: int = 50, *, include_content: bool = False
+    ) -> list[dict]:
         notes = list(self.build_index().get("notes", []) or [])
         if query:
             return self.search_notes(query, limit=limit, include_content=include_content)
@@ -258,7 +264,9 @@ class BrainVault:
             if normalized_term in combined:
                 score += 3.0
             if terms:
-                note_terms = {token for token in re.findall(r"[a-z0-9]+", combined) if len(token) >= 2}
+                note_terms = {
+                    token for token in re.findall(r"[a-z0-9]+", combined) if len(token) >= 2
+                }
                 overlap = len(terms & note_terms)
                 if overlap:
                     score += overlap * 1.5
@@ -283,7 +291,9 @@ class BrainVault:
 
     def save_note(self, title: str, content: str, folder: str = "") -> dict[str, Any]:
         note_title = _clean(title) or "Sem título"
-        path = self._existing_note_path(note_title) or self._path_for_title(note_title, folder=folder)
+        path = self._existing_note_path(note_title) or self._path_for_title(
+            note_title, folder=folder
+        )
         body = str(content or "").strip()
         path.write_text(body + ("\n" if body and not body.endswith("\n") else ""), encoding="utf-8")
         note = self._parse_note(path, include_content=True)
@@ -310,10 +320,14 @@ class BrainVault:
             self._append_section(path, "Fontes", _markdown_bullet_values(list(sources)))
         return self._parse_note(path, include_content=True)
 
-    def save_memory_note(self, category: str, content: str, *, user_id: str = "default") -> dict[str, Any]:
+    def save_memory_note(
+        self, category: str, content: str, *, user_id: str = "default"
+    ) -> dict[str, Any]:
         category_label = _clean(category).replace("_", " ") or "contexto"
         title = f"Memoria {category_label.title()}"
-        path = self._existing_note_path(title) or self._path_for_title(title, folder=f"memorias/{_safe_segment(user_id)}")
+        path = self._existing_note_path(title) or self._path_for_title(
+            title, folder=f"memorias/{_safe_segment(user_id)}"
+        )
         if not path.exists():
             header = f"# {title}\n\n#memoria #nova\n"
             path.write_text(header, encoding="utf-8")
@@ -369,10 +383,14 @@ class BrainVault:
                     continue
                 target_note = by_ref.get(target_ref)
                 target_slug = (
-                    str(target_note["slug"]) if isinstance(target_note, dict) else _slugify(target_title)
+                    str(target_note["slug"])
+                    if isinstance(target_note, dict)
+                    else _slugify(target_title)
                 )
                 target_label = (
-                    str(target_note["title"]) if isinstance(target_note, dict) else _clean(target_title)
+                    str(target_note["title"])
+                    if isinstance(target_note, dict)
+                    else _clean(target_title)
                 )
                 edge_key = (source_slug, target_slug)
                 if edge_key not in seen_edges:

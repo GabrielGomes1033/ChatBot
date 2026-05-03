@@ -32,15 +32,26 @@ ou
 Rotas sensíveis protegidas:
 
 - `/admin/*`
+- `/actions/*`
+- `/brain/*`
+- `/knowledge*`
+- `/location/current`
+- `/location/update`
+- `/memory/*`
+- `/observability/*`
+- `/reminders`
 - `/security/*`
 - `/backup/*`
 - `/automation/*`
 - `/rag/index`
+- `/rag/query`
 - `/rag/feedback`
 - `/agent/*`
 - `/ops/status`
 - `/system/status`
 - `/documents/analyze`
+- `/telegram/send`
+- `/voice/neural`
 
 Sem token valido, essas rotas retornam `401 unauthorized`.
 

@@ -57,13 +57,13 @@ class ApiSmokeTests(unittest.TestCase):
         response = self.client.options(
             "/voice/status",
             headers={
-                "Origin": "https://example.com",
+                "Origin": "http://localhost:3000",
                 "Access-Control-Request-Method": "GET",
             },
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.headers["access-control-allow-origin"], "https://example.com")
+        self.assertEqual(response.headers["access-control-allow-origin"], "http://localhost:3000")
         self.assertIn("GET", response.headers["access-control-allow-methods"])
 
 

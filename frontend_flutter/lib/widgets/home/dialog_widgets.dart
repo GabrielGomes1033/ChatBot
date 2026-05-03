@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../components/nova_input.dart';
+import '../../components/nova_modal.dart';
+import '../../theme/colors.dart';
+
 class NovaCapabilityBadge extends StatelessWidget {
   const NovaCapabilityBadge({super.key, required this.status});
 
@@ -13,16 +17,16 @@ class NovaCapabilityBadge extends StatelessWidget {
     late String label;
 
     if (s == 'completo') {
-      bg = const Color(0x2638D27A);
-      fg = const Color(0xFF8DFFBE);
+      bg = const Color(0x1A30D158);
+      fg = const Color(0xFF1E9B46);
       label = 'Completo';
     } else if (s == 'indisponivel') {
-      bg = const Color(0x26D25A5A);
-      fg = const Color(0xFFFF9D9D);
+      bg = const Color(0x1AE5484D);
+      fg = const Color(0xFFBE2F35);
       label = 'Indisponível';
     } else {
-      bg = const Color(0x26D2B85A);
-      fg = const Color(0xFFFFE39E);
+      bg = const Color(0x1AF2A100);
+      fg = const Color(0xFFAD6A00);
       label = 'Parcial';
     }
 
@@ -58,16 +62,16 @@ class NovaAuditLevelBadge extends StatelessWidget {
     String label;
 
     if (l == 'bom') {
-      bg = const Color(0x3323E79B);
-      fg = const Color(0xFF26F0A2);
+      bg = const Color(0x1A30D158);
+      fg = const Color(0xFF1E9B46);
       label = 'BOM';
     } else if (l == 'critico') {
-      bg = const Color(0x33FF4D4D);
-      fg = const Color(0xFFFF7373);
+      bg = const Color(0x1AE5484D);
+      fg = const Color(0xFFBE2F35);
       label = 'CRÍTICO';
     } else {
-      bg = const Color(0x33FFD34D);
-      fg = const Color(0xFFFFDF7A);
+      bg = const Color(0x1AF2A100);
+      fg = const Color(0xFFAD6A00);
       label = 'ATENÇÃO';
     }
 
@@ -98,6 +102,7 @@ class NovaAuditTimelineRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.novaColors;
     final score = (item['score'] is num)
         ? (item['score'] as num).toInt()
         : int.tryParse(item['score']?.toString() ?? '0') ?? 0;
@@ -120,9 +125,9 @@ class NovaAuditTimelineRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: const Color(0x4403182A),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFF084B74)),
+        color: colors.surfaceMuted,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -132,16 +137,16 @@ class NovaAuditTimelineRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   when,
-                  style: const TextStyle(
-                    color: Color(0xFF84B5CF),
+                  style: TextStyle(
+                    color: colors.textSecondary,
                     fontSize: 11,
                   ),
                 ),
               ),
               Text(
                 '$safeScore/100',
-                style: const TextStyle(
-                  color: Color(0xFFD8F5FF),
+                style: TextStyle(
+                  color: colors.textPrimary,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -153,15 +158,15 @@ class NovaAuditTimelineRow extends StatelessWidget {
             child: LinearProgressIndicator(
               value: safeScore / 100.0,
               minHeight: 8,
-              backgroundColor: const Color(0x55053A58),
+              backgroundColor: colors.border,
               valueColor: AlwaysStoppedAnimation<Color>(barColor),
             ),
           ),
           const SizedBox(height: 6),
           Text(
             'nível: $nivel • achados: $achados',
-            style: const TextStyle(
-              color: Color(0xFF6FA4C3),
+            style: TextStyle(
+              color: colors.textSecondary,
               fontSize: 11,
             ),
           ),
@@ -185,68 +190,10 @@ class NovaPanelDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final maxWidth = size.width < 420 ? size.width * 0.97 : size.width * 0.94;
-    final targetWidth = maxWidth > 920 ? 920.0 : maxWidth;
-    final targetHeight = size.height * 0.9;
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: targetWidth,
-          maxHeight: targetHeight,
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            color: const Color(0xE6031626),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFF0A4D74)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x77000F1E),
-                blurRadius: 28,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 8, 10),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: const Color(0xFF00CEFF),
-                          fontSize: size.width < 460 ? 18 : 24,
-                          letterSpacing: 1.1,
-                        ),
-                      ),
-                    ),
-                    ...actions,
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close, color: Color(0xFF5DA3C6)),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1, color: Color(0xFF0A3F60)),
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: child,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return NovaModalFrame(
+      title: title,
+      actions: actions,
+      child: child,
     );
   }
 }
@@ -258,12 +205,14 @@ class NovaFieldLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.novaColors;
     return Text(
       value,
-      style: const TextStyle(
-        color: Color(0xFF00CCFF),
-        fontSize: 17,
-        letterSpacing: 0.8,
+      style: TextStyle(
+        color: colors.textPrimary,
+        fontSize: 15,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.2,
       ),
     );
   }
@@ -285,31 +234,11 @@ class NovaInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
+    return NovaInputField(
       controller: controller,
+      hintText: hintText,
       maxLines: maxLines,
       obscureText: obscureText,
-      style: const TextStyle(color: Color(0xFFCBEFFF)),
-      decoration: InputDecoration(
-        hintText: hintText,
-        hintStyle: const TextStyle(color: Color(0xFF537B95)),
-        filled: true,
-        fillColor: const Color(0x78031829),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFF084D76)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFF084D76)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFF0ED3FF), width: 1.2),
-        ),
-      ),
     );
   }
 }

@@ -109,9 +109,7 @@ class BrainVaultTests(unittest.TestCase):
 
             suggestions = vault.suggest_links("Atlas", limit=10)
             self.assertTrue(suggestions["ok"])
-            self.assertTrue(
-                any(item.get("target") == "CRM" for item in suggestions["items"])
-            )
+            self.assertTrue(any(item.get("target") == "CRM" for item in suggestions["items"]))
 
     def test_search_web_tool_persists_research_into_vault(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -124,7 +122,11 @@ class BrainVaultTests(unittest.TestCase):
                 "query": "Atlas CRM",
                 "summary": "Atlas CRM integra vendas, backlog e operacao comercial.",
                 "results": [
-                    {"title": "CRM", "snippet": "Sistema central", "url": "https://exemplo.test/crm"},
+                    {
+                        "title": "CRM",
+                        "snippet": "Sistema central",
+                        "url": "https://exemplo.test/crm",
+                    },
                 ],
                 "sources": ["https://exemplo.test/crm"],
             }

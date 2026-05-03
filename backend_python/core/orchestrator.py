@@ -734,7 +734,9 @@ class NovaOrchestrator:
             limit=recent_limit + semantic_limit,
         )
 
-    def _brain_context_items(self, user_id: str, text: str, *, limit: int = 3) -> list[dict[str, Any]]:
+    def _brain_context_items(
+        self, user_id: str, text: str, *, limit: int = 3
+    ) -> list[dict[str, Any]]:
         query = _normalize_text(text)
         if len(query) < 3:
             return []

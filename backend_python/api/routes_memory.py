@@ -7,14 +7,18 @@ except Exception:
     Query = None
     Depends = None
 
-from .dependencies import rate_limit
+from .dependencies import rate_limit, require_token
 from core.brain_vault import BrainVault
 from core.orchestrator import get_default_orchestrator
 from models.schemas import MemoryCreateRequest, MemorySearchResponse
 
 
 if APIRouter is not None:
-    router = APIRouter(prefix="/memory", tags=["memory"], dependencies=[Depends(rate_limit(120))])
+    router = APIRouter(
+        prefix="/memory",
+        tags=["memory"],
+        dependencies=[Depends(rate_limit(120)), Depends(require_token())],
+    )
 
     @router.get("/recent", response_model=MemorySearchResponse)
     def recent_memories_query(user_id: str = Query(...), limit: int = 10) -> MemorySearchResponse:

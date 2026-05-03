@@ -6,13 +6,17 @@ except Exception:
     APIRouter = None
     Depends = None
 
-from .dependencies import rate_limit
+from .dependencies import rate_limit, require_token
 from core.orchestrator import get_default_orchestrator
 from models.schemas import ToolApprovalRequest
 
 
 if APIRouter is not None:
-    router = APIRouter(prefix="/actions", tags=["actions"])
+    router = APIRouter(
+        prefix="/actions",
+        tags=["actions"],
+        dependencies=[Depends(require_token())],
+    )
 
     @router.get("/tools", dependencies=[Depends(rate_limit(120))])
     def list_tools() -> dict:

@@ -8,7 +8,7 @@ except Exception:
     APIRouter = None
     Depends = None
 
-from .dependencies import rate_limit
+from .dependencies import rate_limit, require_token
 from models.schemas import (
     LocationUpdateRequest,
     LocationReverseRequest,
@@ -25,7 +25,7 @@ if APIRouter is not None:
     )
 
     @router.get("/current", response_model=LocationResponse)
-    def get_current_location() -> LocationResponse:
+    def get_current_location(token: bool = Depends(require_token())) -> LocationResponse:
         """Retorna a localização atual armazenada na memória do usuário."""
         memoria = carregar_memoria_usuario()
         location = LocationData(
@@ -58,7 +58,9 @@ if APIRouter is not None:
         return LocationResponse(ok=True, location=location)
 
     @router.post("/update", response_model=LocationResponse)
-    def update_location(req: LocationUpdateRequest) -> LocationResponse:
+    def update_location(
+        req: LocationUpdateRequest, token: bool = Depends(require_token())
+    ) -> LocationResponse:
         """Atualiza a localização do usuário na memória."""
         memoria = carregar_memoria_usuario()
         memoria["ultima_localizacao"] = req.label or ""

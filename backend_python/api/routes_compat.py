@@ -104,11 +104,11 @@ if APIRouter is not None:
                 premium_importar_perfis(backup.get("premium_profiles"))
         return {"ok": True, "restored": True}
 
-    @router.get("/knowledge")
+    @router.get("/knowledge", dependencies=[Depends(require_token())])
     def knowledge_get() -> dict:
         return exportar_aprendizado_json()
 
-    @router.post("/knowledge")
+    @router.post("/knowledge", dependencies=[Depends(require_token())])
     def knowledge_post(body: dict):
         gatilho = str(body.get("gatilho", "")).strip()
         resposta = str(body.get("resposta", "")).strip()
@@ -118,7 +118,7 @@ if APIRouter is not None:
         salvar_aprendizado(gatilho, resposta, categoria=categoria)
         return exportar_aprendizado_json()
 
-    @router.put("/knowledge/{item_id}")
+    @router.put("/knowledge/{item_id}", dependencies=[Depends(require_token())])
     def knowledge_put(item_id: str, body: dict):
         item = atualizar_aprendizado(
             item_id=item_id,
@@ -131,14 +131,14 @@ if APIRouter is not None:
             return _json({"ok": False, "error": "knowledge_not_found"}, status_code=404)
         return {"ok": True, "item": item}
 
-    @router.delete("/knowledge/{item_id}")
+    @router.delete("/knowledge/{item_id}", dependencies=[Depends(require_token())])
     def knowledge_delete(item_id: str):
         ok = remover_aprendizado(item_id)
         if not ok:
             return _json({"ok": False, "error": "knowledge_not_found"}, status_code=404)
         return {"ok": True, "removed": True, "items": listar_aprendizados()}
 
-    @router.get("/memory/subjects")
+    @router.get("/memory/subjects", dependencies=[Depends(require_token())])
     def memory_subjects(limit: int = Query(default=8, ge=1, le=100)) -> dict:
         return perfil_assuntos(limit=limit)
 
@@ -146,11 +146,11 @@ if APIRouter is not None:
     def help_topics() -> dict:
         return ajuda_topicos()
 
-    @router.get("/observability/traces")
+    @router.get("/observability/traces", dependencies=[Depends(require_token())])
     def observability_traces(limit: int = Query(default=120, ge=1, le=500)) -> dict:
         return {"ok": True, "items": listar_traces(limit=limit)}
 
-    @router.get("/observability/summary")
+    @router.get("/observability/summary", dependencies=[Depends(require_token())])
     def observability_summary(window: int = Query(default=200, ge=1, le=500)) -> dict:
         return {"ok": True, "summary": resumo_traces(janela=window)}
 
@@ -177,12 +177,12 @@ if APIRouter is not None:
         status_code = 200 if out.get("ok") else 400
         return _json(out, status_code=status_code)
 
-    @router.get("/reminders")
+    @router.get("/reminders", dependencies=[Depends(require_token())])
     def reminders_get() -> dict:
         items = listar_lembretes()
         return {"ok": True, "items": items, "total": len(items)}
 
-    @router.post("/reminders")
+    @router.post("/reminders", dependencies=[Depends(require_token())])
     def reminders_post(body: dict):
         texto = str(body.get("text", "")).strip()
         quando = str(body.get("when", "")).strip()
@@ -214,7 +214,7 @@ if APIRouter is not None:
     def rag_feedback_stats() -> dict:
         return estatisticas_feedback_rag()
 
-    @router.post("/rag/query")
+    @router.post("/rag/query", dependencies=[Depends(require_token())])
     def rag_query(body: dict):
         pergunta = str(body.get("query", "")).strip()
         out = consultar_rag(pergunta)
@@ -346,7 +346,7 @@ if APIRouter is not None:
         status_code = 200 if out.get("ok") else 400
         return _json(out, status_code=status_code)
 
-    @router.post("/telegram/send")
+    @router.post("/telegram/send", dependencies=[Depends(require_token())])
     def telegram_send(body: dict):
         mensagem = str(body.get("message", "")).strip()
         config = carregar_config_painel()
@@ -360,7 +360,7 @@ if APIRouter is not None:
         status_code = 200 if ok else 400
         return _json({"ok": ok, "message": msg}, status_code=status_code)
 
-    @router.post("/voice/neural")
+    @router.post("/voice/neural", dependencies=[Depends(require_token())])
     def voice_neural(body: dict):
         texto = str(body.get("text", "")).strip()
         perfil = str(body.get("voice_profile", "feminina")).strip()

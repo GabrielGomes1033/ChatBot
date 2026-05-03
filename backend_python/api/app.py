@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 try:
     from fastapi import FastAPI
     from fastapi.middleware.cors import CORSMiddleware
@@ -23,6 +25,37 @@ except Exception:
     admin_router = None
 
 
+def _resolve_cors_settings() -> dict[str, object]:
+    raw = os.getenv("NOVA_API_CORS_ORIGINS", "").strip()
+
+    if raw:
+        origins: list[str] = []
+        for item in raw.split(","):
+            normalized = item.strip()
+            if normalized and normalized not in origins:
+                origins.append(normalized)
+
+        if "*" in origins:
+            return {
+                "allow_origins": ["*"],
+                "allow_origin_regex": None,
+                "allow_credentials": False,
+            }
+
+        if origins:
+            return {
+                "allow_origins": origins,
+                "allow_origin_regex": None,
+                "allow_credentials": True,
+            }
+
+    return {
+        "allow_origins": [],
+        "allow_origin_regex": r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+        "allow_credentials": True,
+    }
+
+
 def create_app():
     if FastAPI is None:
         raise RuntimeError(
@@ -36,10 +69,12 @@ def create_app():
     )
 
     if CORSMiddleware is not None:
+        cors_settings = _resolve_cors_settings()
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=["*"],
-            allow_credentials=True,
+            allow_origins=list(cors_settings["allow_origins"]),
+            allow_origin_regex=cors_settings["allow_origin_regex"],
+            allow_credentials=bool(cors_settings["allow_credentials"]),
             allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             allow_headers=[
                 "Content-Type",
