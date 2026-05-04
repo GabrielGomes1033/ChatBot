@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../theme/colors.dart';
 import 'glass_container.dart';
-import 'nova_quick_actions.dart';
 import 'home/chat_shell_widgets.dart' show NovaConversationAction;
 
 class NovaMessageBubble extends StatelessWidget {
@@ -12,6 +11,10 @@ class NovaMessageBubble extends StatelessWidget {
     required this.text,
     required this.timestamp,
     this.summary,
+    this.viewLabel,
+    this.onViewTap,
+    this.copyLabel,
+    this.onCopyTap,
     this.actions = const [],
     this.onActionTap,
     this.isLive = false,
@@ -21,6 +24,10 @@ class NovaMessageBubble extends StatelessWidget {
   final String text;
   final String? summary;
   final DateTime timestamp;
+  final String? viewLabel;
+  final VoidCallback? onViewTap;
+  final String? copyLabel;
+  final VoidCallback? onCopyTap;
   final List<NovaConversationAction> actions;
   final ValueChanged<NovaConversationAction>? onActionTap;
   final bool isLive;
@@ -83,12 +90,33 @@ class NovaMessageBubble extends StatelessWidget {
               fontWeight: fromUser ? FontWeight.w600 : FontWeight.w500,
             ),
           ),
-          if (!fromUser && actions.isNotEmpty && onActionTap != null) ...[
+          if (!fromUser && (onViewTap != null || onCopyTap != null)) ...[
             const SizedBox(height: 14),
-            NovaQuickActions(
-              actions: actions,
-              onActionTap: onActionTap!,
-              compact: true,
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                if (onViewTap != null)
+                  _buildActionChip(
+                    context: context,
+                    icon: Icons.code_rounded,
+                    label: (viewLabel?.trim().isNotEmpty ?? false)
+                        ? viewLabel!.trim()
+                        : 'Ver codigo',
+                    onTap: onViewTap!,
+                    emphasized: false,
+                  ),
+                if (onCopyTap != null)
+                  _buildActionChip(
+                    context: context,
+                    icon: Icons.content_copy_rounded,
+                    label: (copyLabel?.trim().isNotEmpty ?? false)
+                        ? copyLabel!.trim()
+                        : 'Copiar codigo',
+                    onTap: onCopyTap!,
+                    emphasized: true,
+                  ),
+              ],
             ),
           ],
           const SizedBox(height: 12),
@@ -118,5 +146,56 @@ class NovaMessageBubble extends StatelessWidget {
     final hours = value.hour.toString().padLeft(2, '0');
     final minutes = value.minute.toString().padLeft(2, '0');
     return '$hours:$minutes';
+  }
+
+  Widget _buildActionChip({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    required bool emphasized,
+  }) {
+    final colors = context.novaColors;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 9,
+        ),
+        decoration: BoxDecoration(
+          color: emphasized
+              ? colors.primarySoft.withValues(alpha: 0.16)
+              : Colors.white.withValues(
+                  alpha: context.isNovaDark ? 0.08 : 0.42,
+                ),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: emphasized
+                ? colors.primary.withValues(alpha: 0.28)
+                : colors.glassBorder,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: emphasized ? colors.primary : colors.textPrimary,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: emphasized ? colors.primary : colors.textPrimary,
+                fontSize: 12.8,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

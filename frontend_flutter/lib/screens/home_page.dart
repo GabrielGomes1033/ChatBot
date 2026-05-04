@@ -5,6 +5,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
@@ -47,6 +48,28 @@ import '../widgets/home/chat_shell_widgets.dart'
         NovaGridBackground,
         NovaModuleSnapshot;
 import '../widgets/home/dialog_widgets.dart';
+
+class _NovaDevGeneratorRequest {
+  const _NovaDevGeneratorRequest({
+    required this.prompt,
+    required this.language,
+    required this.projectName,
+  });
+
+  final String prompt;
+  final String language;
+  final String projectName;
+}
+
+class _NovaDevLanguageOption {
+  const _NovaDevLanguageOption({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+}
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -291,6 +314,392 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return null;
   }
 
+  Future<void> _copyGeneratedCode(NovaChatLine line) async {
+    final code = line.copyText?.trim() ?? '';
+    if (code.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: code));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Codigo copiado para a area de transferencia.'),
+      ),
+    );
+  }
+
+  Future<void> _previewGeneratedCode(NovaChatLine line) async {
+    final code = line.copyText?.trim() ?? '';
+    if (code.isEmpty) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final colors = dialogContext.novaColors;
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(20),
+          child: GlassContainer(
+            borderRadius: 30,
+            blur: 28,
+            opacity: dialogContext.isNovaDark ? 0.18 : 0.34,
+            padding: const EdgeInsets.all(20),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: 820,
+                maxHeight: 620,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Preview do codigo',
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    line.summary?.trim().isNotEmpty == true
+                        ? line.summary!.trim()
+                        : 'Codigo gerado pela NOVA.',
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: 13.6,
+                      height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(color: colors.glassBorder),
+                      ),
+                      child: SingleChildScrollView(
+                        child: SelectableText(
+                          code,
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: 13.2,
+                            height: 1.55,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton.icon(
+                        onPressed: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          await Clipboard.setData(ClipboardData(text: code));
+                          if (!dialogContext.mounted) return;
+                          messenger.showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Codigo copiado para a area de transferencia.',
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.content_copy_rounded),
+                        label: const Text('Copiar'),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        child: const Text('Fechar'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  List<_NovaDevLanguageOption> _devLanguageOptions() {
+    return const [
+      _NovaDevLanguageOption(label: 'Auto', value: ''),
+      _NovaDevLanguageOption(label: 'HTML/CSS/JS', value: 'html_css_js'),
+      _NovaDevLanguageOption(label: 'JavaScript', value: 'javascript'),
+      _NovaDevLanguageOption(label: 'Python', value: 'python'),
+      _NovaDevLanguageOption(label: 'Java', value: 'java'),
+      _NovaDevLanguageOption(label: 'C++', value: 'cpp'),
+    ];
+  }
+
+  String _devPromptSeed() {
+    final lastAssistant = _lastAssistantLine();
+    final base = lastAssistant?.explanation?.trim().isNotEmpty == true
+        ? lastAssistant!.explanation!.trim()
+        : lastAssistant?.text.trim() ?? '';
+    if (base.isEmpty) return '';
+    return 'Crie codigo com base neste contexto: ${_summarizeText(base, limit: 120)}';
+  }
+
+  Future<_NovaDevGeneratorRequest?> _showDevGeneratorDialog({
+    String initialPrompt = '',
+  }) async {
+    final promptController = TextEditingController(text: initialPrompt);
+    final projectController = TextEditingController();
+    var selectedLanguage = '';
+
+    final result = await showDialog<_NovaDevGeneratorRequest>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            final colors = dialogContext.novaColors;
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.all(24),
+              child: GlassContainer(
+                borderRadius: 30,
+                blur: 28,
+                opacity: dialogContext.isNovaDark ? 0.18 : 0.34,
+                padding: const EdgeInsets.all(22),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Modulo Dev',
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Descreva a ideia e a NOVA gera uma base real de codigo com instrucoes de execucao.',
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 13.8,
+                          height: 1.45,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      TextField(
+                        controller: promptController,
+                        minLines: 3,
+                        maxLines: 6,
+                        decoration: InputDecoration(
+                          labelText: 'Ideia do projeto',
+                          hintText:
+                              'Ex: criar uma tela de login moderna, uma API em Python ou um script de automacao.',
+                          filled: true,
+                          fillColor: Colors.white.withValues(
+                            alpha: dialogContext.isNovaDark ? 0.07 : 0.76,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: BorderSide(color: colors.glassBorder),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: BorderSide(color: colors.glassBorder),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: BorderSide(color: colors.primary),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _devLanguageOptions()
+                            .map(
+                              (option) => ChoiceChip(
+                                label: Text(option.label),
+                                selected: selectedLanguage == option.value,
+                                onSelected: (_) {
+                                  setDialogState(() {
+                                    selectedLanguage = option.value;
+                                  });
+                                },
+                                selectedColor:
+                                    colors.primarySoft.withValues(alpha: 0.24),
+                                backgroundColor: Colors.white.withValues(
+                                  alpha: dialogContext.isNovaDark ? 0.06 : 0.64,
+                                ),
+                                side: BorderSide(
+                                  color: selectedLanguage == option.value
+                                      ? colors.primary
+                                      : colors.glassBorder,
+                                ),
+                                labelStyle: TextStyle(
+                                  color: selectedLanguage == option.value
+                                      ? colors.primary
+                                      : colors.textPrimary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: projectController,
+                        decoration: InputDecoration(
+                          labelText: 'Nome da pasta (opcional)',
+                          hintText: 'Ex: login_premium',
+                          filled: true,
+                          fillColor: Colors.white.withValues(
+                            alpha: dialogContext.isNovaDark ? 0.07 : 0.76,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: BorderSide(color: colors.glassBorder),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: BorderSide(color: colors.glassBorder),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: BorderSide(color: colors.primary),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(dialogContext).pop(),
+                            child: Text(
+                              'Cancelar',
+                              style: TextStyle(color: colors.textSecondary),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          FilledButton(
+                            onPressed: () {
+                              final prompt = promptController.text.trim();
+                              if (prompt.isEmpty) return;
+                              Navigator.of(dialogContext).pop(
+                                _NovaDevGeneratorRequest(
+                                  prompt: prompt,
+                                  language: selectedLanguage,
+                                  projectName: projectController.text.trim(),
+                                ),
+                              );
+                            },
+                            child: const Text('Gerar codigo'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    promptController.dispose();
+    projectController.dispose();
+    return result;
+  }
+
+  Future<void> _openDevGeneratorFlow({
+    String initialPrompt = '',
+  }) async {
+    final request = await _showDevGeneratorDialog(initialPrompt: initialPrompt);
+    if (request == null) return;
+
+    setState(() {
+      _chat.add(
+        NovaChatLine(
+          fromUser: true,
+          text: 'Gerar codigo: ${request.prompt}',
+        ),
+      );
+      _sending = true;
+      _assistantState = NovaAssistantState.executing;
+      _systemStatus = 'Modulo Dev gerando codigo...';
+    });
+
+    try {
+      final payload = await _api.generateDevCode(
+        prompt: request.prompt,
+        language: request.language,
+        projectName: request.projectName,
+        autoConfirm: true,
+      );
+      if (!mounted) return;
+      final assistantLine = _assistantLineFromPayload(request.prompt, payload);
+      final projectRef = payload['project_ref']?.toString().trim() ?? '';
+      setState(() {
+        _chat.add(assistantLine);
+        _assistantState = NovaAssistantState.suggesting;
+        _systemStatus = projectRef.isNotEmpty
+            ? 'Codigo gerado em $projectRef.'
+            : 'Codigo gerado pelo modulo Dev.';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      final message = _humanizeApiError(
+        error,
+        fallback: 'Nao consegui gerar esse codigo agora.',
+      );
+      setState(() {
+        _chat.add(
+          NovaChatLine(
+            fromUser: false,
+            text: message,
+            summary: 'Falha ao gerar codigo.',
+            explanation: message,
+            actions: _defaultConversationActions(),
+            state: NovaAssistantState.responding,
+          ),
+        );
+        _assistantState = NovaAssistantState.responding;
+        _systemStatus = 'Falha no modulo Dev.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _sending = false;
+          if (_assistantState == NovaAssistantState.responding) {
+            _assistantState = NovaAssistantState.idle;
+          }
+        });
+      }
+    }
+  }
+
   List<String> _extractStringList(dynamic raw) {
     if (raw is! List) return [];
     return raw
@@ -351,6 +760,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
     if (normalized.contains('melhorar interface')) {
       return 'Melhorar a interface atual da NOVA com foco em fluidez e percepcao premium.';
+    }
+    if (normalized.contains('explicar codigo')) {
+      return 'Explique o codigo gerado, a estrutura dos arquivos e como posso evoluir isso.';
+    }
+    if (normalized.contains('corrigir codigo')) {
+      return 'Analise o codigo atual, encontre o erro e sugira a correcao mais segura.';
     }
     if (normalized.contains('organizar') ||
         normalized.contains('proximo passo')) {
@@ -570,6 +985,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       text: reply,
       summary: summary,
       explanation: explanation,
+      copyText: payload['code_bundle']?.toString().trim().isNotEmpty == true
+          ? payload['code_bundle'].toString().trim()
+          : null,
+      copyLabel: payload['copy_label']?.toString().trim().isNotEmpty == true
+          ? payload['copy_label'].toString().trim()
+          : null,
       actions: actions,
       suggestions: suggestions,
       state: state,
@@ -5182,10 +5603,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         context: context,
       );
     } else if (normalized.contains('gerar codigo')) {
-      request = _api.generateCodeAction(
-        userId: _jarvisUserId(),
-        context: context,
+      await _openDevGeneratorFlow(
+        initialPrompt: context.isNotEmpty ? _devPromptSeed() : '',
       );
+      return;
     } else if (normalized.contains('melhorar interface')) {
       request = _api.improveInterfaceAction(
         userId: _jarvisUserId(),
@@ -5265,9 +5686,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return;
     }
     if (normalized.contains('dev')) {
-      await _handleConversationAction(
-        _actionObjectsFromLabels(const ['Gerar codigo']).first,
-      );
+      await _openDevGeneratorFlow(initialPrompt: _devPromptSeed());
       return;
     }
     if (normalized.contains('pesquisa')) {
@@ -5347,6 +5766,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               text: line.text,
               summary: line.summary,
               timestamp: line.timestamp,
+              viewLabel: 'Ver codigo',
+              onViewTap: line.copyText?.trim().isNotEmpty == true
+                  ? () => _previewGeneratedCode(line)
+                  : null,
+              copyLabel: line.copyLabel,
+              onCopyTap: line.copyText?.trim().isNotEmpty == true
+                  ? () => _copyGeneratedCode(line)
+                  : null,
               actions: line.fromUser ? const [] : _actionsForLine(line),
               onActionTap: line.fromUser ? null : _handleConversationAction,
             ),
@@ -5358,17 +5785,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Widget _buildPinnedConversationCard({
     required bool compact,
+    required bool compressed,
   }) {
     final line = _pinnedConversationLine();
     final actions = _actionsForLine(line);
+    final showBriefing = !compressed;
+    final showActions = !compressed && actions.isNotEmpty;
+    final logoSize = compressed ? 40.0 : 46.0;
 
     return Container(
       width: double.infinity,
       padding: EdgeInsets.fromLTRB(
-        compact ? 18 : 22,
-        compact ? 18 : 20,
-        compact ? 18 : 22,
-        compact ? 16 : 18,
+        compressed ? 16 : (compact ? 18 : 22),
+        compressed ? 14 : (compact ? 18 : 20),
+        compressed ? 16 : (compact ? 18 : 22),
+        compressed ? 14 : (compact ? 16 : 18),
       ),
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -5402,13 +5833,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const NovaMetalLogo(size: 46),
-              const SizedBox(width: 12),
+              NovaMetalLogo(size: logoSize),
+              SizedBox(width: compressed ? 10 : 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 2),
+                    SizedBox(height: compressed ? 0 : 2),
                     const Text(
                       'NOVA',
                       style: TextStyle(
@@ -5417,14 +5848,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    SizedBox(height: compressed ? 6 : 10),
                     Text(
                       line.summary?.trim().isNotEmpty == true
                           ? line.summary!.trim()
                           : _contextualGreetingHeadline(),
+                      maxLines: compressed ? 2 : 3,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: compact ? 15.5 : 16.5,
+                        fontSize: compressed ? 14.6 : (compact ? 15.5 : 16.5),
                         fontWeight: FontWeight.w800,
                         height: 1.2,
                       ),
@@ -5434,8 +5867,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               ),
               const SizedBox(width: 12),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                padding: EdgeInsets.symmetric(
+                  horizontal: compressed ? 10 : 12,
+                  vertical: compressed ? 7 : 9,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF1D7F4E).withValues(alpha: 0.22),
                   borderRadius: BorderRadius.circular(999),
@@ -5445,28 +5880,30 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 ),
                 child: Text(
                   _assistantState.label,
-                  style: const TextStyle(
-                    color: Color(0xFF22C55E),
-                    fontSize: 12,
+                  style: TextStyle(
+                    color: const Color(0xFF22C55E),
+                    fontSize: compressed ? 11.2 : 12,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Text(
-            line.explanation?.trim().isNotEmpty == true
-                ? line.explanation!.trim()
-                : _contextualGreetingBriefing(),
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.84),
-              fontSize: compact ? 13.8 : 14.4,
-              height: 1.45,
-              fontWeight: FontWeight.w500,
+          if (showBriefing) ...[
+            const SizedBox(height: 14),
+            Text(
+              line.explanation?.trim().isNotEmpty == true
+                  ? line.explanation!.trim()
+                  : _contextualGreetingBriefing(),
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.84),
+                fontSize: compact ? 13.8 : 14.4,
+                height: 1.45,
+                fontWeight: FontWeight.w500,
+              ),
             ),
-          ),
-          if (actions.isNotEmpty) ...[
+          ],
+          if (showActions) ...[
             const SizedBox(height: 16),
             Text(
               'Próximo passo',
@@ -5522,14 +5959,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   .toList(),
             ),
           ],
-          const SizedBox(height: 12),
-          Text(
-            '${line.timestamp.hour.toString().padLeft(2, '0')}:${line.timestamp.minute.toString().padLeft(2, '0')}',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.56),
-              fontSize: 11.5,
+          if (!compressed) ...[
+            const SizedBox(height: 12),
+            Text(
+              '${line.timestamp.hour.toString().padLeft(2, '0')}:${line.timestamp.minute.toString().padLeft(2, '0')}',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.56),
+                fontSize: 11.5,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -5653,6 +6092,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         SizedBox(height: topGap),
         _buildPinnedConversationCard(
           compact: compact,
+          compressed: compressed,
         ),
         SizedBox(height: topGap),
         Expanded(

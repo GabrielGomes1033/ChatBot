@@ -15,6 +15,7 @@ from core.dev_assistente import (
     criar_api,
     criar_api_com_banco,
     criar_painel_admin,
+    gerar_codigo_por_ideia,
     criar_sistema_estoque,
     criar_site,
     menu_desenvolvedor,
@@ -73,6 +74,57 @@ class DevAssistantTests(unittest.TestCase):
             html = (Path(tmp) / "painel_central" / "index.html").read_text(encoding="utf-8")
             self.assertIn("NOVA Control Center", html)
             self.assertIn("Painel administrativo", resposta)
+
+    def test_gerar_codigo_por_ideia_cria_login_web(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            resposta = gerar_codigo_por_ideia(
+                "Nova, cria uma tela de login moderna",
+                base_dir=tmp,
+            )
+            pasta = Path(tmp) / "login_moderno"
+            self.assertEqual(resposta["language"], "html_css_js")
+            self.assertTrue((pasta / "index.html").exists())
+            self.assertTrue((pasta / "style.css").exists())
+            self.assertTrue((pasta / "script.js").exists())
+            self.assertIn("Como executar:", resposta["answer"])
+            self.assertIn("// arquivo: index.html", resposta["code_bundle"])
+            self.assertIn("Copiar codigo", resposta["copy_label"])
+
+    def test_gerar_codigo_por_ideia_cria_python_quando_solicitado(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            resposta = gerar_codigo_por_ideia(
+                "Nova, crie um script de automacao em Python",
+                language="python",
+                base_dir=tmp,
+            )
+            pasta = Path(tmp) / "script_python"
+            self.assertEqual(resposta["language"], "python")
+            self.assertTrue((pasta / "main.py").exists())
+            self.assertIn("python main.py", (pasta / "README.md").read_text(encoding="utf-8"))
+
+    def test_gerar_codigo_por_ideia_cria_java_quando_solicitado(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            resposta = gerar_codigo_por_ideia(
+                "Nova, crie um programa em Java para cadastro simples",
+                language="java",
+                base_dir=tmp,
+            )
+            pasta = Path(tmp) / "app_java"
+            self.assertEqual(resposta["language"], "java")
+            self.assertTrue((pasta / "Main.java").exists())
+            self.assertIn("javac Main.java", resposta["answer"])
+
+    def test_gerar_codigo_por_ideia_cria_cpp_quando_solicitado(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            resposta = gerar_codigo_por_ideia(
+                "Nova, crie um app em C++ para linha de comando",
+                language="c++",
+                base_dir=tmp,
+            )
+            pasta = Path(tmp) / "app_cpp"
+            self.assertEqual(resposta["language"], "cpp")
+            self.assertTrue((pasta / "main.cpp").exists())
+            self.assertIn("g++ -std=c++17 main.cpp -o app", resposta["answer"])
 
     def test_processa_comando_dev_para_correcao_de_erro(self) -> None:
         resposta = processar_comando_dev(
@@ -133,6 +185,23 @@ class DevAssistantTests(unittest.TestCase):
             "Nova, quero criar API com banco de dados", contexto=contexto
         )
         self.assertIn("API com banco de dados", resposta)
+
+    def test_fluxo_generico_dev_pede_confirmacao_e_gera_codigo(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            contexto = {}
+            resposta = processar_comando_dev(
+                "Nova, cria uma tela de login moderna",
+                contexto=contexto,
+                base_dir=tmp,
+            )
+            self.assertIn("confirmar criação", resposta)
+            confirmada = processar_comando_dev(
+                "confirmar criação",
+                contexto=contexto,
+                base_dir=tmp,
+            )
+            self.assertIn("Linguagem escolhida: HTML, CSS e JavaScript.", confirmada)
+            self.assertTrue((Path(tmp) / "login_moderno" / "index.html").exists())
 
     def test_orquestrador_responde_modo_dev(self) -> None:
         with patch(

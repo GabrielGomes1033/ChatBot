@@ -8,7 +8,7 @@ except Exception:
     Depends = None
     JSONResponse = None
 
-from core.dev_assistente import processar_comando_dev
+from core.dev_assistente import gerar_codigo_por_ideia
 
 from .dependencies import rate_limit, require_token
 
@@ -29,19 +29,24 @@ if APIRouter is not None:
         prompt = str(body.get("prompt", "")).strip()
         language = str(body.get("language", "")).strip()
         project_name = str(body.get("project_name", "")).strip()
-        auto_confirm = bool(body.get("auto_confirm", False))
 
         if not prompt:
-            pieces = ["Nova, gerar codigo"]
-            if language:
-                pieces.append(f"em {language}")
-            if project_name:
-                pieces.append(f"para {project_name}")
-            prompt = " ".join(pieces).strip()
+            return _json(
+                {
+                    "ok": False,
+                    "error": "prompt_required",
+                    "message": "Descreva a ideia que deseja transformar em codigo.",
+                },
+                status_code=400,
+            )
 
-        context: dict[str, object] = {}
-        first_pass = processar_comando_dev(prompt, contexto=context)
-        if first_pass is None:
+        try:
+            generated = gerar_codigo_por_ideia(
+                prompt,
+                language=language,
+                project_name=project_name,
+            )
+        except ValueError:
             return _json(
                 {
                     "ok": False,
@@ -51,25 +56,30 @@ if APIRouter is not None:
                 status_code=400,
             )
 
-        answer = first_pass
-        pending_confirmation = "confirmar cria" in str(first_pass).lower()
-
-        if pending_confirmation and auto_confirm:
-            confirmed = processar_comando_dev("confirmar criacao", contexto=context)
-            if confirmed:
-                answer = confirmed
-                pending_confirmation = False
-
         return {
             "ok": True,
             "status": "ok",
             "type": "dev",
-            "answer": str(answer).strip(),
-            "pending_confirmation": pending_confirmation,
+            "answer": str(generated.get("answer", "")).strip(),
+            "reply": str(generated.get("answer", "")).strip(),
+            "resumo": str(generated.get("summary", "")).strip(),
+            "explicacao": str(generated.get("answer", "")).strip(),
+            "assistant_state": "suggesting",
+            "language": generated.get("language"),
+            "language_label": generated.get("language_label"),
+            "project_name": generated.get("project_name"),
+            "project_dir": generated.get("project_dir"),
+            "project_ref": generated.get("project_ref"),
+            "files": generated.get("files", []),
+            "run_instructions": generated.get("run_instructions", []),
+            "improvements": generated.get("improvements", []),
+            "code_bundle": generated.get("code_bundle", ""),
+            "copy_label": generated.get("copy_label", "Copiar codigo"),
+            "pending_confirmation": False,
             "next_actions": [
                 "Continuar projeto",
-                "Melhorar interface",
                 "Explicar codigo",
+                "Melhorar interface",
             ],
         }
 

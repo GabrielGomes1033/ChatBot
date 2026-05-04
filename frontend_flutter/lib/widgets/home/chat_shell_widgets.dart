@@ -82,6 +82,8 @@ class NovaChatLine {
     required this.text,
     this.summary,
     this.explanation,
+    this.copyText,
+    this.copyLabel,
     this.actions = const [],
     this.suggestions = const [],
     this.state = NovaAssistantState.idle,
@@ -93,6 +95,8 @@ class NovaChatLine {
   final String text;
   final String? summary;
   final String? explanation;
+  final String? copyText;
+  final String? copyLabel;
   final List<NovaConversationAction> actions;
   final List<NovaConversationAction> suggestions;
   final NovaAssistantState state;

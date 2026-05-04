@@ -102,16 +102,16 @@ class NovaChatInput extends StatelessWidget {
           Expanded(
             child: Container(
               constraints: BoxConstraints(
-                minHeight: compact ? 52 : 58,
+                minHeight: compact ? 50 : 56,
                 maxHeight: hasAttachment
-                    ? (compact ? 118 : 132)
-                    : (compact ? 92 : 108),
+                    ? (compact ? 112 : 128)
+                    : (compact ? 88 : 104),
               ),
               padding: EdgeInsets.fromLTRB(
                 compact ? 14 : 16,
-                compact ? 10 : 11,
+                compact ? 8 : 9,
                 compact ? 14 : 16,
-                compact ? 10 : 11,
+                compact ? 8 : 9,
               ),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(
@@ -176,13 +176,13 @@ class NovaChatInput extends StatelessWidget {
                   TextField(
                     controller: controller,
                     minLines: 1,
-                    maxLines: 4,
+                    maxLines: compact ? 3 : 4,
                     keyboardType: TextInputType.multiline,
                     textInputAction: TextInputAction.newline,
                     style: TextStyle(
                       color: colors.textPrimary,
                       fontSize: compact ? 15 : 15.6,
-                      height: 1.35,
+                      height: compact ? 1.25 : 1.35,
                     ),
                     cursorColor: colors.primary,
                     decoration: InputDecoration(
