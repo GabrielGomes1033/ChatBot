@@ -14,22 +14,38 @@ import 'package:printing/printing.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../services/chat_api.dart';
 import '../services/api_endpoint_config.dart';
 import '../services/attachment_analysis_service.dart';
 import '../services/background_wake_service.dart';
 import '../services/app_security_service.dart';
+import '../services/camera_service.dart';
+import '../services/chat_api.dart';
 import '../services/device_connectivity.dart';
 import '../services/device_calendar_service.dart';
+import '../services/file_service.dart';
 import '../services/local_database.dart';
+import '../services/memory_service.dart';
 import '../services/platform_capabilities.dart';
 import '../services/reminder_notifications.dart';
 import '../services/secure_secrets_service.dart';
 import '../services/speech_formatter.dart';
 import '../services/system_scan_service.dart';
 import '../theme/colors.dart';
+import '../widgets/glass_container.dart';
+import '../widgets/nova_chat_input.dart';
+import '../widgets/nova_message_bubble.dart';
+import '../widgets/nova_modules_panel.dart';
+import '../widgets/nova_sidebar_bio.dart';
+import '../widgets/nova_top_bar.dart';
 import '../widgets/home/brain_widgets.dart';
-import '../widgets/home/chat_shell_widgets.dart';
+import '../widgets/home/chat_shell_widgets.dart'
+    show
+        NovaAssistantState,
+        NovaAssistantStateX,
+        NovaChatLine,
+        NovaConversationAction,
+        NovaGridBackground,
+        NovaModuleSnapshot;
 import '../widgets/home/dialog_widgets.dart';
 
 class HomePage extends StatefulWidget {
@@ -46,6 +62,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final ChatApiService _api = ChatApiService();
   final AttachmentAnalysisService _attachmentAnalysis =
       AttachmentAnalysisService();
+  late final FileService _fileService = FileService(
+    api: _api,
+    attachmentAnalysis: _attachmentAnalysis,
+  );
+  late final CameraService _cameraService = CameraService();
+  late final MemoryService _memoryService = MemoryService(api: _api);
   final LocalDatabaseService _localDb = LocalDatabaseService();
   final DeviceConnectivityService _deviceConnectivity =
       DeviceConnectivityService();
@@ -87,12 +109,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   };
 
   String _systemStatus = 'Conectando...';
+  NovaAssistantState _assistantState = NovaAssistantState.suggesting;
   bool _speechReady = false;
   bool _isListening = false;
   bool _executedFromVoice = false;
   bool _sending = false;
   bool _loadingState = false;
-  String? _composerAttachmentName;
+  bool _preparingAttachment = false;
+  NovaAttachment? _composerAttachment;
   bool _continuousWakeMode = false;
   bool _manualListeningStop = false;
   int _speakRequestId = 0;
@@ -154,6 +178,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await _loadMusicLibrary();
     await _loadReminders();
     await _refreshJarvisFoundation();
+    if (!mounted) return;
+    _refreshOpeningLine();
   }
 
   String _periodGreeting() {
@@ -163,9 +189,71 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return 'Boa noite';
   }
 
-  String _initialGreeting() {
-    final base = '${_periodGreeting()}! Eu sou a NOVA.';
-    return '$base Estou aqui, pronta para aprender com você e te ajudar.';
+  String _resolvedUserName() {
+    final preferred = (_config['nome_usuario']?.toString().trim() ?? '');
+    if (preferred.isNotEmpty) return preferred;
+    for (final user in _users) {
+      final active = user['ativo'];
+      if (active == false) continue;
+      final name = user['nome']?.toString().trim() ?? '';
+      if (name.isNotEmpty) return name;
+    }
+    return 'Gabriel';
+  }
+
+  String _activeProjectLabel() {
+    const hints = ['nova', 'projeto', 'flutter', 'interface', 'app'];
+    for (final item in _recentMemory) {
+      final content = item['content']?.toString().trim() ?? '';
+      if (content.isEmpty) continue;
+      final lowered = content.toLowerCase();
+      if (hints.any(lowered.contains)) {
+        return _truncateRailText(content, limit: 42);
+      }
+    }
+    for (final note in _brainNotes) {
+      final title = note['title']?.toString().trim() ?? '';
+      if (title.isEmpty) continue;
+      final lowered = title.toLowerCase();
+      if (hints.any(lowered.contains)) {
+        return _truncateRailText(title, limit: 38);
+      }
+    }
+    return 'projeto NOVA';
+  }
+
+  String _conversationContextLabel() {
+    final project = _activeProjectLabel();
+    final attachmentName = _composerAttachment?.name.trim() ?? '';
+    if (attachmentName.isNotEmpty) {
+      return 'Contexto ativo: $project · anexo pronto para análise';
+    }
+    if (_recentMemory.isNotEmpty) {
+      return 'Contexto ativo: $project · memória operacional sincronizada';
+    }
+    return 'Contexto ativo: $project · pronto para sugerir e executar';
+  }
+
+  String _contextualGreetingHeadline() {
+    final name = _resolvedUserName();
+    final project = _activeProjectLabel();
+    return '${_periodGreeting()}, $name. Vi que voce estava trabalhando em $project.';
+  }
+
+  String _contextualGreetingBriefing() {
+    final hasMemories = _recentMemory.isNotEmpty;
+    final notesCount =
+        (_brainGraph['total_notes'] as num?)?.toInt() ?? _brainNotes.length;
+    if (hasMemories) {
+      return 'Quer continuar de onde parou, revisar melhorias ou transformar isso em um proximo passo executavel?'
+          ' Eu ja separei memoria, sugestoes e historico para acelerar a retomada.';
+    }
+    if (notesCount > 0) {
+      return 'Ja encontrei $notesCount nota${notesCount == 1 ? '' : 's'} para apoiar a retomada.'
+          ' Posso organizar o contexto, sugerir a melhor acao ou executar o proximo passo.';
+    }
+    return 'A NOVA nao funciona como um chat solto.'
+        ' Ela entende contexto, sugere caminhos, executa tarefas e aprende com o seu jeito de trabalhar.';
   }
 
   String _jarvisUserId() {
@@ -195,24 +283,373 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         .toList();
   }
 
-  List<String> _brainRailItems() {
-    final suggestionTexts = _brainSuggestions.take(2).map((item) {
-      final source = item['source']?.toString().trim() ?? '';
-      final target = item['target']?.toString().trim() ?? '';
-      if (source.isEmpty || target.isEmpty) return '';
-      return 'Sugerido: $source -> $target';
-    }).where((item) => item.isNotEmpty);
+  NovaChatLine? _lastAssistantLine() {
+    for (var index = _chat.length - 1; index >= 0; index--) {
+      final item = _chat[index];
+      if (!item.fromUser) return item;
+    }
+    return null;
+  }
 
-    final noteTexts = _brainNotes.take(2).map((item) {
-      final title = item['title']?.toString().trim() ?? '';
-      final excerpt = item['excerpt']?.toString().trim() ?? '';
-      if (title.isEmpty) return '';
-      return excerpt.isEmpty
-          ? title
-          : '$title: ${_truncateRailText(excerpt, limit: 64)}';
-    }).where((item) => item.isNotEmpty);
+  List<String> _extractStringList(dynamic raw) {
+    if (raw is! List) return [];
+    return raw
+        .map((item) {
+          if (item is String) return item.trim();
+          if (item is Map) {
+            final label = item['label']?.toString().trim() ?? '';
+            if (label.isNotEmpty) return label;
+            final text = item['text']?.toString().trim() ?? '';
+            if (text.isNotEmpty) return text;
+          }
+          return item.toString().trim();
+        })
+        .where((item) => item.isNotEmpty)
+        .toList();
+  }
 
-    return [...suggestionTexts, ...noteTexts].take(3).toList();
+  String _summarizeText(String text, {int limit = 180}) {
+    final normalized = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalized.length <= limit) return normalized;
+    final clipped = normalized.substring(0, limit);
+    final safe = clipped.contains(' ')
+        ? clipped.substring(0, clipped.lastIndexOf(' '))
+        : clipped;
+    return '${safe.trim()}...';
+  }
+
+  IconData _iconForActionLabel(String label) {
+    final normalized = label.toLowerCase();
+    if (normalized.contains('codigo')) return Icons.code_rounded;
+    if (normalized.contains('interface')) return Icons.design_services_rounded;
+    if (normalized.contains('continuar')) return Icons.arrow_forward_rounded;
+    if (normalized.contains('memoria') || normalized.contains('salvar')) {
+      return Icons.bookmark_outline_rounded;
+    }
+    if (normalized.contains('pesquisa') || normalized.contains('fontes')) {
+      return Icons.travel_explore_rounded;
+    }
+    if (normalized.contains('lembrete') || normalized.contains('agenda')) {
+      return Icons.alarm_rounded;
+    }
+    if (normalized.contains('automat')) return Icons.bolt_rounded;
+    return Icons.auto_awesome_rounded;
+  }
+
+  String _promptForActionLabel(String label) {
+    final normalized = label.toLowerCase();
+    final project = _activeProjectLabel();
+
+    if (normalized.contains('continuar projeto')) {
+      return 'Continuar o projeto $project e me mostrar o proximo passo operacional.';
+    }
+    if (normalized.contains('continuar daqui')) {
+      return 'Continue de onde paramos e organize o proximo passo mais importante.';
+    }
+    if (normalized.contains('gerar codigo')) {
+      return 'Gerar codigo para o contexto atual e explicar como aplicar.';
+    }
+    if (normalized.contains('melhorar interface')) {
+      return 'Melhorar a interface atual da NOVA com foco em fluidez e percepcao premium.';
+    }
+    if (normalized.contains('organizar') ||
+        normalized.contains('proximo passo')) {
+      return 'Organize os proximos passos desta conversa em ordem de prioridade.';
+    }
+    if (normalized.contains('salvar contexto') ||
+        normalized.contains('salvar resumo') ||
+        normalized.contains('salvar na memoria')) {
+      return 'Salvar o contexto importante desta conversa na memoria da NOVA.';
+    }
+    if (normalized.contains('comparar fontes')) {
+      return 'Compare as fontes e destaque o que realmente importa.';
+    }
+    if (normalized.contains('aprofundar pesquisa')) {
+      return 'Aprofunde a pesquisa e traga uma resposta mais robusta.';
+    }
+    if (normalized.contains('criar lembrete')) {
+      return 'Crie um lembrete com base no que estamos tratando agora.';
+    }
+    if (normalized.contains('automatizar')) {
+      return 'Mostre como automatizar isso daqui para frente.';
+    }
+    if (normalized.contains('revisar a acao')) {
+      return 'Revise a acao proposta e explique o impacto antes de executar.';
+    }
+    if (normalized.contains('explicar o impacto')) {
+      return 'Explique o impacto dessa acao e os riscos antes de continuar.';
+    }
+    return label;
+  }
+
+  List<NovaConversationAction> _actionObjectsFromLabels(
+    List<String> labels, {
+    bool firstPrimary = true,
+  }) {
+    final used = <String>{};
+    final actions = <NovaConversationAction>[];
+    for (final label in labels) {
+      final clean = label.trim();
+      final key = clean.toLowerCase();
+      if (clean.isEmpty || used.contains(key)) continue;
+      used.add(key);
+      actions.add(
+        NovaConversationAction(
+          label: clean,
+          prompt: _promptForActionLabel(clean),
+          primary: firstPrimary && actions.isEmpty,
+          icon: _iconForActionLabel(clean),
+        ),
+      );
+    }
+    return actions;
+  }
+
+  List<NovaConversationAction> _defaultConversationActions() {
+    return _actionObjectsFromLabels(
+      const [
+        'Continuar projeto',
+        'Gerar codigo',
+        'Melhorar interface',
+      ],
+    );
+  }
+
+  NovaChatLine _buildGreetingLine() {
+    return NovaChatLine(
+      fromUser: false,
+      text: _contextualGreetingBriefing(),
+      summary: _contextualGreetingHeadline(),
+      explanation: _contextualGreetingBriefing(),
+      actions: _defaultConversationActions(),
+      suggestions: _actionObjectsFromLabels(
+        const [
+          'Organizar proximo passo',
+          'Salvar contexto',
+          'Automatizar depois',
+        ],
+        firstPrimary: false,
+      ),
+      state: NovaAssistantState.suggesting,
+      highlight: true,
+    );
+  }
+
+  void _refreshOpeningLine() {
+    final greetingLine = _buildGreetingLine();
+    if (_chat.isEmpty) {
+      setState(() => _chat.add(greetingLine));
+      return;
+    }
+    setState(() {
+      if (_chat.first.fromUser) {
+        _chat.insert(0, greetingLine);
+      } else {
+        _chat[0] = greetingLine;
+      }
+    });
+  }
+
+  NovaChatLine _pinnedConversationLine() {
+    if (_chat.isNotEmpty && !_chat.first.fromUser) {
+      return _chat.first;
+    }
+    return _buildGreetingLine();
+  }
+
+  List<NovaChatLine> _visibleChatLines() {
+    if (_chat.isEmpty) return const [];
+    if (!_chat.first.fromUser) {
+      return _chat.skip(1).toList();
+    }
+    return List<NovaChatLine>.from(_chat);
+  }
+
+  NovaAssistantState _assistantStateFromPayload(Map<String, dynamic> payload) {
+    final raw =
+        payload['assistant_state']?.toString().trim().toLowerCase() ?? '';
+    switch (raw) {
+      case 'thinking':
+        return NovaAssistantState.thinking;
+      case 'responding':
+        return NovaAssistantState.responding;
+      case 'suggesting':
+        return NovaAssistantState.suggesting;
+      case 'executing':
+        return NovaAssistantState.executing;
+      default:
+        break;
+    }
+    if (payload['decision_type']?.toString().trim() == 'tool_call') {
+      return NovaAssistantState.executing;
+    }
+    return NovaAssistantState.responding;
+  }
+
+  Map<String, dynamic> _buildLocalStructuredPayload(
+    String userMessage,
+    String reply,
+  ) {
+    final operational = userMessage.toLowerCase().contains('abrir') ||
+            userMessage.toLowerCase().contains('mostrar') ||
+            userMessage.toLowerCase().contains('salvar')
+        ? 'Executando'
+        : 'Respondendo';
+
+    return {
+      'reply': reply,
+      'resumo': _summarizeText(reply, limit: 140),
+      'explicacao': reply,
+      'acoes': const [
+        'Continuar daqui',
+        'Organizar proximo passo',
+        'Salvar contexto',
+      ],
+      'sugestoes': userMessage.toLowerCase().contains('projeto')
+          ? const [
+              'Continuar projeto',
+              'Gerar codigo',
+              'Melhorar interface',
+            ]
+          : const [
+              'Automatizar depois',
+              'Criar lembrete',
+              'Aprofundar pesquisa',
+            ],
+      'assistant_state': operational.toLowerCase(),
+    };
+  }
+
+  NovaChatLine _assistantLineFromPayload(
+    String userMessage,
+    Map<String, dynamic> payload,
+  ) {
+    final reply = payload['reply']?.toString().trim().isNotEmpty == true
+        ? payload['reply'].toString().trim()
+        : (payload['answer']?.toString().trim().isNotEmpty == true
+            ? payload['answer'].toString().trim()
+            : (payload['explicacao']?.toString().trim().isNotEmpty == true
+                ? payload['explicacao'].toString().trim()
+                : 'Sem resposta.'));
+    final summary = payload['resumo']?.toString().trim().isNotEmpty == true
+        ? payload['resumo'].toString().trim()
+        : _summarizeText(reply, limit: 150);
+    final explanation =
+        payload['explicacao']?.toString().trim().isNotEmpty == true
+            ? payload['explicacao'].toString().trim()
+            : reply;
+    final actionLabels = _extractStringList(
+      payload['acoes'] is List ? payload['acoes'] : payload['next_actions'],
+    );
+    final suggestionLabels = _extractStringList(
+      payload['sugestoes'] is List
+          ? payload['sugestoes']
+          : payload['next_actions'],
+    );
+    final actions = actionLabels.isNotEmpty
+        ? _actionObjectsFromLabels(actionLabels)
+        : _defaultConversationActions();
+    final suggestions = suggestionLabels.isNotEmpty
+        ? _actionObjectsFromLabels(suggestionLabels, firstPrimary: false)
+        : _actionObjectsFromLabels(
+            const [
+              'Continuar daqui',
+              'Organizar proximo passo',
+              'Salvar contexto',
+            ],
+            firstPrimary: false,
+          );
+
+    final state = _assistantStateFromPayload(payload);
+    final highlighted = userMessage.toLowerCase().contains('nova') &&
+        (reply.toLowerCase().contains('projeto') ||
+            summary.toLowerCase().contains('contexto'));
+
+    return NovaChatLine(
+      fromUser: false,
+      text: reply,
+      summary: summary,
+      explanation: explanation,
+      actions: actions,
+      suggestions: suggestions,
+      state: state,
+      highlight: highlighted,
+    );
+  }
+
+  List<String> _documentHighlights() {
+    final docs = <String>[];
+    final attachmentName = _composerAttachment?.name.trim() ?? '';
+    if (attachmentName.isNotEmpty) {
+      docs.add('Anexo atual: $attachmentName');
+    }
+    final attachmentSummary = _composerAttachment?.summary.trim() ?? '';
+    if (attachmentSummary.isNotEmpty) {
+      docs.add('Análise: ${_summarizeText(attachmentSummary, limit: 72)}');
+    }
+    for (final note in _brainNotes.take(3)) {
+      final title = note['title']?.toString().trim() ?? '';
+      if (title.isNotEmpty) docs.add('Vault: $title');
+    }
+    return docs;
+  }
+
+  List<NovaModuleSnapshot> _contextModules() {
+    final combinedText = [
+      for (final item in _chat.take(8))
+        item.summary?.toLowerCase() ?? item.text.toLowerCase(),
+      ..._memoryRailItems().map((item) => item.toLowerCase()),
+    ].join(' ');
+
+    bool containsAny(List<String> tokens) =>
+        tokens.any((token) => combinedText.contains(token));
+
+    return [
+      NovaModuleSnapshot(
+        title: 'Cerebro',
+        description: 'Memoria, contexto e preferencias sempre a vista.',
+        metric: '${_recentMemory.length} ctx',
+        icon: Icons.psychology_alt_rounded,
+        active: _recentMemory.isNotEmpty || _brainNotes.isNotEmpty,
+      ),
+      NovaModuleSnapshot(
+        title: 'Dev',
+        description: 'Codigo, interface e entregas do produto em andamento.',
+        metric: containsAny(['codigo', 'flutter', 'interface', 'bug'])
+            ? 'ativo'
+            : 'pronto',
+        icon: Icons.code_rounded,
+        active:
+            containsAny(['codigo', 'flutter', 'interface', 'bug', 'projeto']),
+      ),
+      NovaModuleSnapshot(
+        title: 'Pesquisa',
+        description: 'Fontes, comparacoes e leitura acelerada.',
+        metric:
+            containsAny(['pesquisa', 'fonte', 'resumo']) ? 'quente' : 'pronto',
+        icon: Icons.travel_explore_rounded,
+        active: containsAny(['pesquisa', 'fonte', 'resumo']),
+      ),
+      NovaModuleSnapshot(
+        title: 'Financeiro',
+        description: 'Custos, previsoes e decisao por numeros.',
+        metric: containsAny(['finance', 'orcamento', 'receita', 'custo'])
+            ? 'em foco'
+            : 'standby',
+        icon: Icons.account_balance_wallet_rounded,
+        active: containsAny(['finance', 'orcamento', 'receita', 'custo']),
+      ),
+      NovaModuleSnapshot(
+        title: 'Automacao',
+        description: 'Execucao segura de acoes e proximos passos.',
+        metric: _assistantState == NovaAssistantState.executing
+            ? 'rodando'
+            : 'pronta',
+        icon: Icons.bolt_rounded,
+        active: _assistantState == NovaAssistantState.executing ||
+            _reminders.isNotEmpty,
+      ),
+    ];
   }
 
   Future<void> _refreshJarvisFoundation() async {
@@ -237,22 +674,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (_) {}
 
     try {
-      recentMemory = await _api.getRecentMemory(
+      final workspace = await _memoryService.loadWorkspaceSnapshot(
         userId: _jarvisUserId(),
-        limit: 6,
       );
-    } catch (_) {}
-
-    try {
-      brainNotes = await _api.getBrainNotes(limit: 6);
-    } catch (_) {}
-
-    try {
-      brainSuggestions = await _api.getBrainSuggestions(limit: 6);
-    } catch (_) {}
-
-    try {
-      brainGraph = await _api.getBrainGraph();
+      recentMemory =
+          (workspace['recent_memories'] as List<dynamic>? ?? const [])
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+      brainNotes = (workspace['notes'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+      brainSuggestions =
+          (workspace['suggestions'] as List<dynamic>? ?? const [])
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+      brainGraph = (workspace['graph'] is Map)
+          ? Map<String, dynamic>.from(workspace['graph'] as Map)
+          : brainGraph;
     } catch (_) {}
 
     if (!mounted) return;
@@ -329,7 +770,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _chat.add(NovaChatLine(fromUser: false, text: _initialGreeting()));
+    _chat.add(_buildGreetingLine());
     _initTts();
     _initSpeech();
     _notifications.init();
@@ -937,8 +1378,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       const ack = 'Oi chefe.';
       if (!mounted) return;
       setState(() {
-        _chat.add(const NovaChatLine(fromUser: false, text: ack));
+        _chat.add(
+          NovaChatLine(
+            fromUser: false,
+            text: ack,
+            summary: 'Pronta para continuar.',
+            explanation: ack,
+            actions: _defaultConversationActions(),
+            suggestions: _actionObjectsFromLabels(
+              const [
+                'Continuar projeto',
+                'Organizar proximo passo',
+                'Salvar contexto',
+              ],
+              firstPrimary: false,
+            ),
+            state: NovaAssistantState.suggesting,
+          ),
+        );
         _systemStatus = 'Wake word detectada.';
+        _assistantState = NovaAssistantState.suggesting;
       });
       await _speak(ack);
       return;
@@ -996,49 +1455,103 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return t;
   }
 
+  String _attachmentContextForChat(NovaAttachment? attachment) {
+    if (attachment == null) return '';
+    final details = <String>[
+      'Arquivo anexado: ${attachment.name}',
+      'Tipo MIME: ${attachment.mimeType}',
+    ];
+    final summary = attachment.summary.trim();
+    if (summary.isNotEmpty) {
+      details.add('Resumo da análise: $summary');
+    }
+    return details.join('\n');
+  }
+
   Future<void> _handleSendMessage() async {
     final message = _messageController.text.trim();
-    final attached = _composerAttachmentName;
-    if (message.isEmpty && attached == null) return;
-    final outbound = attached == null
+    final attachment = _composerAttachment;
+    if (message.isEmpty && attachment == null) return;
+    final outbound = message.isNotEmpty
         ? message
-        : message.isEmpty
-            ? 'Arquivo anexado: $attached'
-            : '$message\n\n[Arquivo anexado: $attached]';
-    await _executeCommand(outbound, fromVoice: false);
+        : attachment!.isImage
+            ? 'NOVA, analise esta imagem.'
+            : 'NOVA, leia e resuma este documento.';
+    await _executeCommand(
+      outbound,
+      fromVoice: false,
+      attachment: attachment,
+    );
     if (!mounted) return;
     setState(() {
-      _composerAttachmentName = null;
+      _composerAttachment = null;
     });
   }
 
-  Future<void> _pickComposerAttachment() async {
-    final result = await FilePicker.platform.pickFiles(
-      allowMultiple: false,
-      type: FileType.any,
-    );
-    if (result == null || result.files.isEmpty) return;
-    final file = result.files.first;
-    if (!mounted) return;
+  Future<void> _prepareAttachment(
+    NovaAttachment attachment, {
+    String successMessage = 'Arquivo anexado com análise pronta.',
+  }) async {
+    if (_preparingAttachment) return;
     setState(() {
-      _composerAttachmentName = file.name;
+      _preparingAttachment = true;
+      _assistantState = NovaAssistantState.executing;
+      _systemStatus = 'Preparando anexo...';
     });
-    _showSnack('Arquivo anexado: ${file.name}');
+
+    try {
+      final prepared = await _fileService.prepareAttachment(
+        attachment,
+        context: _conversationContextLabel(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _composerAttachment = prepared;
+        _assistantState = NovaAssistantState.suggesting;
+        _systemStatus = 'Anexo pronto para análise no chat.';
+      });
+      _showSnack(successMessage);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _assistantState = NovaAssistantState.responding;
+        _systemStatus = 'Falha ao preparar anexo.';
+      });
+      _showSnack(
+        _humanizeApiError(
+          error,
+          fallback: 'Não consegui preparar o arquivo agora.',
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _preparingAttachment = false;
+          if (_assistantState == NovaAssistantState.responding) {
+            _assistantState = NovaAssistantState.idle;
+          }
+        });
+      }
+    }
+  }
+
+  Future<void> _pickComposerAttachment() async {
+    final picked = await _fileService.pickAttachment();
+    if (picked == null) return;
+    await _prepareAttachment(
+      picked,
+      successMessage: 'Arquivo anexado e interpretado pela NOVA.',
+    );
   }
 
   Future<void> _pickQuickPhoto() async {
     try {
-      final picked = await _imagePicker.pickImage(
-        source: ImageSource.camera,
-        preferredCameraDevice: CameraDevice.rear,
-        imageQuality: 90,
-      );
+      final picked = await _cameraService.capturePhoto();
       if (picked == null) return;
-      if (!mounted) return;
-      setState(() {
-        _composerAttachmentName = picked.name;
-      });
-      _showSnack('Foto capturada: ${picked.name}');
+      await _prepareAttachment(
+        picked,
+        successMessage: 'Foto capturada e pronta para análise.',
+      );
     } catch (_) {
       final result = await FilePicker.platform.pickFiles(
         allowMultiple: false,
@@ -1049,11 +1562,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         return;
       }
       final file = result.files.first;
-      if (!mounted) return;
-      setState(() {
-        _composerAttachmentName = file.name;
-      });
-      _showSnack('Imagem adicionada: ${file.name}');
+      if (file.bytes == null && (file.path ?? '').trim().isEmpty) {
+        _showSnack('Não consegui ler a imagem selecionada.');
+        return;
+      }
+      final bytes = file.bytes ?? await File(file.path!).readAsBytes();
+      await _prepareAttachment(
+        NovaAttachment(
+          name: file.name,
+          mimeType: 'image/jpeg',
+          bytes: bytes,
+          localPath: file.path,
+        ),
+        successMessage: 'Imagem adicionada e pronta para análise.',
+      );
     }
   }
 
@@ -1873,36 +2395,64 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await showDialog<void>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF04192A),
-          title: const Text(
-            'PIN Administrativo',
-            style: TextStyle(color: Color(0xFFD4F4FF)),
-          ),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            obscureText: true,
-            keyboardType: TextInputType.number,
-            style: const TextStyle(color: Color(0xFFD4F4FF)),
-            decoration: const InputDecoration(
-              hintText: 'Digite o PIN',
-              hintStyle: TextStyle(color: Color(0xFF6E8DA5)),
+        final colors = context.novaColors;
+        return NovaPanelDialog(
+          title: 'PIN Administrativo',
+          child: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Confirme seu PIN para liberar recursos administrativos da NOVA.',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  maxLength: 8,
+                  style: TextStyle(color: colors.textPrimary),
+                  decoration: const InputDecoration(
+                    hintText: 'Digite o PIN',
+                    counterText: '',
+                  ),
+                  onSubmitted: (_) {
+                    pin = controller.text.trim();
+                    Navigator.of(context).pop();
+                  },
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Cancelar'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () {
+                          pin = controller.text.trim();
+                          Navigator.of(context).pop();
+                        },
+                        child: const Text('Confirmar'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () {
-                pin = controller.text.trim();
-                Navigator.of(context).pop();
-              },
-              child: const Text('Confirmar'),
-            ),
-          ],
         );
       },
     );
@@ -2149,6 +2699,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await showDialog<void>(
       context: context,
       builder: (context) {
+        final colors = context.novaColors;
         return NovaPanelDialog(
           title: 'COMPATIBILIDADE',
           child: SizedBox(
@@ -2159,8 +2710,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               children: [
                 Text(
                   'Dispositivo atual: ${PlatformCapabilities.platformName}',
-                  style: const TextStyle(
-                    color: Color(0xFFBDE8FF),
+                  style: TextStyle(
+                    color: colors.textPrimary,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -2168,13 +2719,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 ...itens.map(
                   (item) => Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0x55021425),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFF0A4E75)),
-                      ),
+                    child: NovaPanelSection(
+                      padding: const EdgeInsets.all(12),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -2184,16 +2730,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                               children: [
                                 Text(
                                   item['label'] ?? '-',
-                                  style: const TextStyle(
-                                    color: Color(0xFFD6F4FF),
+                                  style: TextStyle(
+                                    color: colors.textPrimary,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   item['detail'] ?? '',
-                                  style: const TextStyle(
-                                    color: Color(0xFF76A6C2),
+                                  style: TextStyle(
+                                    color: colors.textSecondary,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -2208,10 +2754,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     ),
                   ),
                 ),
-                const Text(
+                Text(
                   'Dica: no Android, a NOVA suporta wake word em segundo plano.',
                   style: TextStyle(
-                    color: Color(0xFF6E9AB8),
+                    color: colors.textSecondary,
                     fontSize: 12,
                   ),
                 ),
@@ -2537,6 +3083,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setLocalState) {
+            final colors = context.novaColors;
             Future<void> analisar() async => analisarSelecionado(setLocalState);
 
             Future<void> exportarPdf() async {
@@ -2589,7 +3136,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                             selectedName.isEmpty
                                 ? 'Nenhum arquivo ou imagem selecionado'
                                 : 'Arquivo: $selectedName',
-                            style: const TextStyle(color: Color(0xFFBCE8FF)),
+                            style: TextStyle(color: colors.textPrimary),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -2638,15 +3185,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       const SizedBox(height: 8),
                       Text(
                         learningText,
-                        style: const TextStyle(color: Color(0xFF8EE0FF)),
+                        style: TextStyle(color: colors.primary),
                       ),
                     ],
                     if (subjectsText.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
                         subjectsText,
-                        style: const TextStyle(
-                            color: Color(0xFF87CFEA), fontSize: 12),
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                     const SizedBox(height: 8),
@@ -2660,21 +3209,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     ),
                     if (error.isNotEmpty) ...[
                       const SizedBox(height: 8),
-                      Text(error,
-                          style: const TextStyle(color: Color(0xFFFF8A8A))),
+                      Text(
+                        error,
+                        style: TextStyle(
+                            color: Theme.of(context).colorScheme.error),
+                      ),
                     ],
                     const SizedBox(height: 10),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 420),
-                      child: SingleChildScrollView(
-                        child: Text(
-                          reportText.isEmpty
-                              ? 'Anexe um documento, escolha uma imagem ou tire uma foto para gerar o relatório.'
-                              : reportText,
-                          style: const TextStyle(
-                            color: Color(0xFFD4F4FF),
-                            fontSize: 12,
-                            height: 1.35,
+                    NovaPanelSection(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 420),
+                        child: SingleChildScrollView(
+                          child: Text(
+                            reportText.isEmpty
+                                ? 'Anexe um documento, escolha uma imagem ou tire uma foto para gerar o relatório.'
+                                : reportText,
+                            style: TextStyle(
+                              color: colors.textPrimary,
+                              fontSize: 12.5,
+                              height: 1.45,
+                            ),
                           ),
                         ),
                       ),
@@ -2792,6 +3346,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setLocalState) {
+            final colors = context.novaColors;
             if (topics.isEmpty && commands.isEmpty && !loading) {
               carregar(setLocalState);
             }
@@ -2805,11 +3360,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   children: [
                     Row(
                       children: [
-                        const Expanded(
+                        Expanded(
                           child: Text(
                             'Guia completo por tópicos e comandos',
                             style: TextStyle(
-                              color: Color(0xFFBCE8FF),
+                              color: colors.textPrimary,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -2824,20 +3379,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     ),
                     if (error.isNotEmpty) ...[
                       const SizedBox(height: 8),
-                      Text(error,
-                          style: const TextStyle(color: Color(0xFFE8BC75))),
+                      Text(
+                        error,
+                        style: TextStyle(color: colors.textSecondary),
+                      ),
                     ],
                     const SizedBox(height: 10),
-                    Container(
+                    NovaPanelSection(
                       padding: const EdgeInsets.all(12),
-                      decoration: _boxDeco,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Tópicos',
                             style: TextStyle(
-                              color: Color(0xFFBDE8FF),
+                              color: colors.textPrimary,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -2847,10 +3403,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                               padding: const EdgeInsets.only(bottom: 8),
                               child: Text(
                                 '• ${t['topic'] ?? '-'}: ${t['text'] ?? ''}',
-                                style: const TextStyle(
-                                  color: Color(0xFFD4F4FF),
-                                  fontSize: 12,
-                                  height: 1.35,
+                                style: TextStyle(
+                                  color: colors.textPrimary,
+                                  fontSize: 12.5,
+                                  height: 1.45,
                                 ),
                               ),
                             ),
@@ -2859,16 +3415,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    Container(
+                    NovaPanelSection(
                       padding: const EdgeInsets.all(12),
-                      decoration: _boxDeco,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Comandos',
                             style: TextStyle(
-                              color: Color(0xFFBDE8FF),
+                              color: colors.textPrimary,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -2884,10 +3439,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                 final c = commands[index];
                                 return Text(
                                   '• ${c['cmd'] ?? '-'}: ${c['desc'] ?? ''}',
-                                  style: const TextStyle(
-                                    color: Color(0xFFCBEFFF),
-                                    fontSize: 12,
-                                    height: 1.35,
+                                  style: TextStyle(
+                                    color: colors.textPrimary,
+                                    fontSize: 12.5,
+                                    height: 1.45,
                                   ),
                                 );
                               },
@@ -2906,10 +3461,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _executeCommand(String rawMessage,
-      {required bool fromVoice}) async {
+  Future<void> _executeCommand(
+    String rawMessage, {
+    required bool fromVoice,
+    NovaAttachment? attachment,
+  }) async {
     final message = rawMessage.trim();
-    if (message.isEmpty) return;
+    if (message.isEmpty && attachment == null) return;
 
     if (fromVoice) {
       _manualListeningStop = true;
@@ -2923,23 +3481,60 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }
     }
 
+    final outboundText = message.isEmpty && attachment != null
+        ? 'Analise o arquivo anexado.'
+        : message;
+    final chatContext = _attachmentContextForChat(attachment);
+    final requestContext = attachment?.fileId?.trim().isNotEmpty == true &&
+            attachment?.analysis != null
+        ? ''
+        : chatContext;
+
     setState(() {
-      _chat.add(NovaChatLine(fromUser: true, text: message));
+      final userText = attachment == null
+          ? outboundText
+          : outboundText.isEmpty
+              ? 'Anexo enviado: ${attachment.name}'
+              : '$outboundText\n\n[Anexo: ${attachment.name}]';
+      _chat.add(NovaChatLine(fromUser: true, text: userText));
       _messageController.clear();
       _sending = true;
+      _assistantState = NovaAssistantState.thinking;
       _systemStatus =
           fromVoice ? 'Comando de voz enviado.' : 'Mensagem enviada.';
     });
 
     try {
-      final localReply = await _handleLocalUiCommands(message);
-      final reply = localReply ?? await _api.sendMessage(message);
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      final localReply = attachment == null
+          ? await _handleLocalUiCommands(outboundText)
+          : null;
       if (!mounted) return;
+      if (localReply != null) {
+        setState(() => _assistantState = NovaAssistantState.executing);
+      }
+
+      final payload = localReply != null
+          ? _buildLocalStructuredPayload(outboundText, localReply)
+          : await _api.sendJarvisMessage(
+              outboundText,
+              userId: _jarvisUserId(),
+              fileId: attachment?.fileId,
+              context: requestContext,
+            );
+      if (!mounted) return;
+      final assistantLine = _assistantLineFromPayload(outboundText, payload);
+      final speechText = assistantLine.explanation?.trim().isNotEmpty == true
+          ? assistantLine.explanation!.trim()
+          : assistantLine.text;
       setState(() {
-        _chat.add(NovaChatLine(fromUser: false, text: reply));
+        _chat.add(assistantLine);
         _systemStatus = 'Resposta recebida.';
+        _assistantState = assistantLine.suggestions.isNotEmpty
+            ? NovaAssistantState.suggesting
+            : assistantLine.state;
       });
-      await _speak(reply);
+      await _speak(speechText);
       await _refreshAdminState();
       await _loadReminders();
       await _refreshJarvisFoundation();
@@ -2952,13 +3547,37 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           NovaChatLine(
             fromUser: false,
             text: message,
+            summary: 'Nao consegui concluir agora.',
+            explanation: message,
+            actions: _actionObjectsFromLabels(
+              const [
+                'Continuar daqui',
+                'Revisar a acao',
+                'Automatizar depois',
+              ],
+            ),
+            suggestions: _actionObjectsFromLabels(
+              const [
+                'Aprofundar pesquisa',
+                'Criar lembrete',
+                'Melhorar interface',
+              ],
+              firstPrimary: false,
+            ),
+            state: NovaAssistantState.responding,
           ),
         );
         _systemStatus = 'Erro de conexão em ${_api.baseUrl}.';
+        _assistantState = NovaAssistantState.responding;
       });
     } finally {
       if (mounted) {
-        setState(() => _sending = false);
+        setState(() {
+          _sending = false;
+          if (_assistantState == NovaAssistantState.responding) {
+            _assistantState = NovaAssistantState.idle;
+          }
+        });
       }
     }
   }
@@ -2977,15 +3596,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final saved = await showDialog<bool>(
       context: context,
       builder: (context) {
+        final colors = context.novaColors;
         return NovaPanelDialog(
           title: 'ENSINAR NOVA',
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Ensine a NOVA a responder de um jeito específico.',
-                style: TextStyle(color: Color(0xFF6B98B8), fontSize: 13),
+                style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: 13,
+                ),
               ),
               const SizedBox(height: 14),
               const NovaFieldLabel('GATILHO (o que o usuário diz)'),
@@ -3472,6 +4095,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setLocalState) {
+            final colors = context.novaColors;
+            final mutedStyle = TextStyle(
+              color: colors.textSecondary,
+              fontSize: 12,
+              height: 1.35,
+            );
             Future<void> salvarConfig() async {
               final rawApiBaseUrl = apiBaseUrlController.text.trim();
               final normalizedApiBaseUrl =
@@ -3574,59 +4203,84 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               await showDialog<void>(
                 context: context,
                 builder: (context) {
-                  return AlertDialog(
-                    backgroundColor: const Color(0xFF021526),
-                    title: const Text('Definir PIN administrativo'),
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextField(
-                          controller: pin1,
-                          keyboardType: TextInputType.number,
-                          obscureText: true,
-                          maxLength: 8,
-                          decoration: const InputDecoration(
-                            hintText: 'Novo PIN (4-8 dígitos)',
-                            counterText: '',
+                  final colors = context.novaColors;
+                  return NovaPanelDialog(
+                    title: 'Definir PIN administrativo',
+                    child: SizedBox(
+                      width: 460,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Crie um PIN de 4 a 8 dígitos para reforçar o acesso às áreas sensíveis.',
+                            style: TextStyle(
+                              color: colors.textSecondary,
+                              fontSize: 13,
+                              height: 1.4,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: pin2,
-                          keyboardType: TextInputType.number,
-                          obscureText: true,
-                          maxLength: 8,
-                          decoration: const InputDecoration(
-                            hintText: 'Confirmar PIN',
-                            counterText: '',
+                          const SizedBox(height: 14),
+                          TextField(
+                            controller: pin1,
+                            keyboardType: TextInputType.number,
+                            obscureText: true,
+                            maxLength: 8,
+                            decoration: const InputDecoration(
+                              hintText: 'Novo PIN (4-8 dígitos)',
+                              counterText: '',
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 10),
+                          TextField(
+                            controller: pin2,
+                            keyboardType: TextInputType.number,
+                            obscureText: true,
+                            maxLength: 8,
+                            decoration: const InputDecoration(
+                              hintText: 'Confirmar PIN',
+                              counterText: '',
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  child: const Text('Cancelar'),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: FilledButton(
+                                  onPressed: () async {
+                                    final a = pin1.text.trim();
+                                    final b = pin2.text.trim();
+                                    if (a.length < 4 || a.length > 8) {
+                                      _showSnack(
+                                          'PIN deve ter entre 4 e 8 dígitos.');
+                                      return;
+                                    }
+                                    if (a != b) {
+                                      _showSnack('PINs não conferem.');
+                                      return;
+                                    }
+                                    await _secureSecrets.setAdminPin(a);
+                                    if (context.mounted) {
+                                      Navigator.of(context).pop();
+                                    }
+                                    _showSnack(
+                                        'PIN administrativo atualizado.');
+                                  },
+                                  child: const Text('Salvar PIN'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Cancelar'),
-                      ),
-                      FilledButton(
-                        onPressed: () async {
-                          final a = pin1.text.trim();
-                          final b = pin2.text.trim();
-                          if (a.length < 4 || a.length > 8) {
-                            _showSnack('PIN deve ter entre 4 e 8 dígitos.');
-                            return;
-                          }
-                          if (a != b) {
-                            _showSnack('PINs não conferem.');
-                            return;
-                          }
-                          await _secureSecrets.setAdminPin(a);
-                          if (context.mounted) Navigator.of(context).pop();
-                          _showSnack('PIN administrativo atualizado.');
-                        },
-                        child: const Text('Salvar PIN'),
-                      ),
-                    ],
                   );
                 },
               );
@@ -3647,18 +4301,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       decoration: _boxDeco,
                       child: Row(
                         children: [
-                          const Expanded(
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Voz da NOVA',
+                                const Text('Voz da NOVA',
                                     style:
                                         TextStyle(fontWeight: FontWeight.w600)),
-                                SizedBox(height: 2),
+                                const SizedBox(height: 2),
                                 Text(
                                   'Respostas em áudio',
-                                  style: TextStyle(
-                                      color: Color(0xFF6689A2), fontSize: 12),
+                                  style: mutedStyle,
                                 ),
                               ],
                             ),
@@ -3679,18 +4332,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       decoration: _boxDeco,
                       child: Row(
                         children: [
-                          const Expanded(
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Aprendizado por documentos',
+                                const Text('Aprendizado por documentos',
                                     style:
                                         TextStyle(fontWeight: FontWeight.w600)),
-                                SizedBox(height: 2),
+                                const SizedBox(height: 2),
                                 Text(
                                   'Quando um arquivo é analisado, a NOVA aprende automaticamente e atualiza a base.',
-                                  style: TextStyle(
-                                      color: Color(0xFF6689A2), fontSize: 12),
+                                  style: mutedStyle,
                                 ),
                               ],
                             ),
@@ -3726,12 +4378,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                             obscureText: true,
                           ),
                           const SizedBox(height: 8),
-                          const Text(
+                          Text(
                             'Opcional. Deixe vazio para usar o auto-detect da plataforma. '
                             'Preencha para apontar o app para um backend especifico sem recompilar. '
                             'Se o backend exigir autenticacao, informe aqui o token da API.',
-                            style: TextStyle(
-                                color: Color(0xFF6689A2), fontSize: 12),
+                            style: mutedStyle,
                           ),
                         ],
                       ),
@@ -3751,10 +4402,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                             hintText: 'voce@empresa.com',
                           ),
                           const SizedBox(height: 8),
-                          const Text(
+                          Text(
                             'Conta preferida para salvar eventos no Android. A NOVA tenta usar essa agenda primeiro.',
-                            style: TextStyle(
-                                color: Color(0xFF6689A2), fontSize: 12),
+                            style: mutedStyle,
                           ),
                         ],
                       ),
@@ -3768,19 +4418,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         children: [
                           Row(
                             children: [
-                              const Expanded(
+                              Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('Voz Neural Híbrida',
+                                    const Text('Voz Neural Híbrida',
                                         style: TextStyle(
                                             fontWeight: FontWeight.w600)),
-                                    SizedBox(height: 2),
+                                    const SizedBox(height: 2),
                                     Text(
                                       'Usa voz neural online e cai para voz local se estiver offline',
-                                      style: TextStyle(
-                                          color: Color(0xFF6689A2),
-                                          fontSize: 12),
+                                      style: mutedStyle,
                                     ),
                                   ],
                                 ),
@@ -3832,18 +4480,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       decoration: _boxDeco,
                       child: Row(
                         children: [
-                          const Expanded(
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Modo Escuta',
+                                const Text('Modo Escuta',
                                     style:
                                         TextStyle(fontWeight: FontWeight.w600)),
-                                SizedBox(height: 2),
+                                const SizedBox(height: 2),
                                 Text(
                                   'Liga/desliga captação do microfone da assistente',
-                                  style: TextStyle(
-                                      color: Color(0xFF6689A2), fontSize: 12),
+                                  style: mutedStyle,
                                 ),
                               ],
                             ),
@@ -3885,21 +4532,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                             ],
                           ),
                           const SizedBox(height: 4),
-                          const Text(
+                          Text(
                             'Bloqueia telas administrativas com biometria/PIN e guarda segredos em cofre seguro.',
-                            style: TextStyle(
-                              color: Color(0xFF6689A2),
-                              fontSize: 12,
-                            ),
+                            style: mutedStyle,
                           ),
                           const SizedBox(height: 10),
                           Row(
                             children: [
-                              const Expanded(
+                              Expanded(
                                 child: Text(
                                   'Permitir comando de voz com tela bloqueada',
-                                  style: TextStyle(
-                                      color: Color(0xFF6689A2), fontSize: 12),
+                                  style: mutedStyle,
                                 ),
                               ),
                               Switch.adaptive(
@@ -3937,11 +4580,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           const SizedBox(height: 8),
                           Row(
                             children: [
-                              const Expanded(
+                              Expanded(
                                 child: Text(
                                   'Modo manual (push-to-talk)',
-                                  style: TextStyle(
-                                      color: Color(0xFF6689A2), fontSize: 12),
+                                  style: mutedStyle,
                                 ),
                               ),
                               Switch.adaptive(
@@ -3959,11 +4601,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           const SizedBox(height: 8),
                           Row(
                             children: [
-                              const Expanded(
+                              Expanded(
                                 child: Text(
                                   'Monitor de voz contínuo',
-                                  style: TextStyle(
-                                      color: Color(0xFF6689A2), fontSize: 12),
+                                  style: mutedStyle,
                                 ),
                               ),
                               Switch.adaptive(
@@ -4026,8 +4667,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           });
                         },
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFFFF6262),
-                          side: const BorderSide(color: Color(0xFF7A2A2A)),
+                          foregroundColor: Theme.of(context).colorScheme.error,
+                          side: BorderSide(
+                            color:
+                                Theme.of(context).colorScheme.error.withValues(
+                                      alpha: 0.36,
+                                    ),
+                          ),
                         ),
                         child: const Text('Limpar histórico de chat'),
                       ),
@@ -4059,11 +4705,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   void _showSnack(String message) {
     if (!mounted) return;
+    final colors = context.novaColors;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
         behavior: SnackBarBehavior.floating,
-        backgroundColor: const Color(0xFF042338),
+        backgroundColor: Color.lerp(
+          colors.brandSurface,
+          colors.surfaceStrong,
+          context.isNovaDark ? 0.18 : 0.10,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(
+            color: colors.glassBorder.withValues(
+              alpha: context.isNovaDark ? 0.28 : 0.70,
+            ),
+          ),
+        ),
+        elevation: 0,
       ),
     );
   }
@@ -4097,91 +4757,95 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final created = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF081722),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-            side: const BorderSide(color: Color(0xFF0E4868)),
-          ),
-          title: const Text(
-            'Nova nota no vault',
-            style: TextStyle(color: Color(0xFFE6F8FF)),
-          ),
-          content: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  NovaInput(
-                    controller: titleController,
-                    hintText: 'Titulo da nota',
+        final colors = dialogContext.novaColors;
+        return NovaPanelDialog(
+          title: 'Nova nota no vault',
+          child: SizedBox(
+            width: 560,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Adicione uma nota em Markdown para enriquecer o contexto e as conexões do vault.',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 13,
+                    height: 1.4,
                   ),
-                  const SizedBox(height: 10),
-                  NovaInput(
-                    controller: folderController,
-                    hintText: 'Pasta opcional, ex: projetos/atlas',
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
+                ),
+                const SizedBox(height: 14),
+                NovaInput(
+                  controller: titleController,
+                  hintText: 'Titulo da nota',
+                ),
+                const SizedBox(height: 10),
+                NovaInput(
+                  controller: folderController,
+                  hintText: 'Pasta opcional, ex: projetos/atlas',
+                ),
+                const SizedBox(height: 10),
+                NovaPanelSection(
+                  padding: EdgeInsets.zero,
+                  child: TextField(
                     controller: contentController,
                     minLines: 8,
                     maxLines: 14,
-                    style: const TextStyle(color: Color(0xFFEAF8FF)),
+                    style: TextStyle(color: colors.textPrimary),
                     decoration: InputDecoration(
                       hintText:
                           'Escreva em Markdown. Exemplo: [[Projeto Atlas]] #ideia',
-                      hintStyle: const TextStyle(color: Color(0x7FB3C9D7)),
+                      hintStyle: TextStyle(color: colors.textSecondary),
                       filled: true,
-                      fillColor: const Color(0x66021626),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: Color(0xFF0E4868)),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: Color(0xFF0E4868)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: Color(0xFF33C7FF)),
-                      ),
+                      fillColor: Colors.transparent,
+                      contentPadding: const EdgeInsets.all(16),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
                     ),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(false),
+                        child: const Text('Cancelar'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () async {
+                          final title = titleController.text.trim();
+                          final content = contentController.text.trim();
+                          final folder = folderController.text.trim();
+                          if (title.isEmpty) {
+                            _showSnack('Digite um titulo para a nota.');
+                            return;
+                          }
+                          try {
+                            await _api.saveBrainNote(
+                              title: title,
+                              content: content,
+                              folder: folder,
+                            );
+                            if (dialogContext.mounted) {
+                              Navigator.of(dialogContext).pop(true);
+                            }
+                          } catch (error) {
+                            _showSnack(_humanizeApiError(error));
+                          }
+                        },
+                        child: const Text('Salvar nota'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                final title = titleController.text.trim();
-                final content = contentController.text.trim();
-                final folder = folderController.text.trim();
-                if (title.isEmpty) {
-                  _showSnack('Digite um titulo para a nota.');
-                  return;
-                }
-                try {
-                  await _api.saveBrainNote(
-                    title: title,
-                    content: content,
-                    folder: folder,
-                  );
-                  if (dialogContext.mounted) {
-                    Navigator.of(dialogContext).pop(true);
-                  }
-                } catch (error) {
-                  _showSnack(_humanizeApiError(error));
-                }
-              },
-              child: const Text('Salvar nota'),
-            ),
-          ],
         );
       },
     );
@@ -4328,24 +4992,60 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   BoxDecoration get _boxDeco {
+    final colors = context.novaColors;
     return BoxDecoration(
-      color: const Color(0x4D03192A),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: const Color(0xFF07456A)),
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Colors.white.withValues(alpha: context.isNovaDark ? 0.08 : 0.32),
+          colors.surface.withValues(alpha: context.isNovaDark ? 0.12 : 0.42),
+        ],
+      ),
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(
+        color: colors.glassBorder.withValues(
+          alpha: context.isNovaDark ? 0.38 : 0.88,
+        ),
+      ),
+      boxShadow: [
+        BoxShadow(
+          color:
+              colors.shadow.withValues(alpha: context.isNovaDark ? 0.22 : 0.06),
+          blurRadius: 18,
+          offset: const Offset(0, 8),
+        ),
+        BoxShadow(
+          color: colors.glassHighlight.withValues(
+            alpha: context.isNovaDark ? 0.04 : 0.22,
+          ),
+          blurRadius: 6,
+          offset: const Offset(-2, -2),
+        ),
+      ],
     );
   }
 
   Future<void> _openQuickMenu() async {
     if (!mounted) return;
-    await showModalBottomSheet<void>(
+    await showGeneralDialog<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF021626),
-      showDragHandle: true,
-      builder: (context) {
-        final actions = <({String label, IconData icon, VoidCallback onTap})>[
+      barrierDismissible: true,
+      barrierLabel: 'menu-rapido',
+      barrierColor: Colors.black.withValues(
+        alpha: context.isNovaDark ? 0.26 : 0.12,
+      ),
+      transitionDuration: const Duration(milliseconds: 240),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        final actions = <({
+          String label,
+          String description,
+          IconData icon,
+          VoidCallback onTap
+        })>[
           (
             label: 'Cerebro',
+            description: 'Vault, conexões, notas e contexto ativo.',
             icon: Icons.hub_outlined,
             onTap: () {
               _openBrainDialog();
@@ -4353,104 +5053,584 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ),
           (
             label: 'Ensinar',
+            description: 'Cadastre respostas e comportamentos da NOVA.',
             icon: Icons.school_outlined,
             onTap: _openTeachDialog
           ),
           (
             label: 'Editar Base',
+            description: 'Gerencie a base de conhecimento e respostas.',
             icon: Icons.edit_note,
             onTap: _openKnowledgeDialog
           ),
-          (label: 'Lembretes', icon: Icons.alarm, onTap: _openRemindersDialog),
+          (
+            label: 'Lembretes',
+            description: 'Agendamentos, tarefas e lembretes inteligentes.',
+            icon: Icons.alarm,
+            onTap: _openRemindersDialog
+          ),
           (
             label: 'Documentos',
+            description: 'Analise arquivos, OCR e aprendizados automáticos.',
             icon: Icons.description_outlined,
             onTap: _openDocumentAnalysisDialog
           ),
-          (label: 'Help', icon: Icons.help_outline, onTap: _openHelpDialog),
+          (
+            label: 'Help',
+            description: 'Ajuda rápida, comandos e guia de uso.',
+            icon: Icons.help_outline,
+            onTap: _openHelpDialog
+          ),
           (
             label: 'Compatibilidade',
+            description: 'Verifique capacidades do dispositivo e plataforma.',
             icon: Icons.devices,
             onTap: _openCompatibilityDialog
           ),
           (
             label: 'Configurações',
+            description: 'Ajuste voz, API, segurança e comportamento.',
             icon: Icons.settings_outlined,
             onTap: _openConfigDialog
           ),
         ];
 
         return LayoutBuilder(
-          builder: (context, constraints) {
-            final compact = constraints.maxWidth < 560;
-            final maxHeight = MediaQuery.sizeOf(context).height * 0.8;
-            return SafeArea(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: maxHeight),
-                child: compact
-                    ? ListView.separated(
-                        shrinkWrap: true,
-                        itemCount: actions.length,
-                        separatorBuilder: (_, __) =>
-                            const Divider(height: 1, color: Color(0x220A446A)),
-                        itemBuilder: (context, index) {
-                          final item = actions[index];
-                          return ListTile(
-                            leading:
-                                Icon(item.icon, color: const Color(0xFF6CD2FF)),
-                            title: Text(
-                              item.label,
-                              style: const TextStyle(color: Color(0xFFD2F2FF)),
-                            ),
-                            onTap: () {
-                              Navigator.of(context).pop();
-                              item.onTap();
-                            },
-                          );
-                        },
-                      )
-                    : GridView.builder(
-                        shrinkWrap: true,
-                        padding: const EdgeInsets.fromLTRB(14, 6, 14, 14),
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: constraints.maxWidth >= 1100
-                              ? 4
-                              : (constraints.maxWidth >= 760 ? 3 : 2),
-                          mainAxisSpacing: 10,
-                          crossAxisSpacing: 10,
-                          childAspectRatio:
-                              constraints.maxWidth >= 1100 ? 3.1 : 2.8,
+          builder: (dialogContext, constraints) {
+            final spacing = constraints.maxWidth < 560 ? 12.0 : 14.0;
+            final columns = constraints.maxWidth >= 1160
+                ? 4
+                : (constraints.maxWidth >= 820
+                    ? 3
+                    : (constraints.maxWidth >= 500 ? 2 : 1));
+            final availableWidth = constraints.maxWidth < 460
+                ? constraints.maxWidth * 0.94
+                : (constraints.maxWidth < 760
+                    ? constraints.maxWidth * 0.90
+                    : (constraints.maxWidth < 1180
+                        ? constraints.maxWidth * 0.84
+                        : 980.0));
+            final tileWidth = columns == 1
+                ? availableWidth - 48
+                : (availableWidth - 48 - (spacing * (columns - 1))) / columns;
+
+            return NovaFloatingMenuShell(
+              title: 'Menu rápido',
+              subtitle:
+                  'Acesso flutuante para os módulos principais da NOVA, com layout adaptável para mobile, tablet e desktop.',
+              child: Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: actions
+                    .map(
+                      (item) => SizedBox(
+                        width: tileWidth,
+                        child: NovaFloatingMenuActionCard(
+                          label: item.label,
+                          description: item.description,
+                          icon: item.icon,
+                          onTap: () {
+                            Navigator.of(dialogContext).pop();
+                            item.onTap();
+                          },
                         ),
-                        itemCount: actions.length,
-                        itemBuilder: (context, index) {
-                          final item = actions[index];
-                          return OutlinedButton.icon(
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                              item.onTap();
-                            },
-                            icon: Icon(item.icon, size: 18),
-                            label: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(item.label,
-                                  maxLines: 1, overflow: TextOverflow.ellipsis),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFFD2F2FF),
-                              side: const BorderSide(color: Color(0xFF0A446A)),
-                              backgroundColor: const Color(0x4403182A),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                          );
-                        },
                       ),
+                    )
+                    .toList(),
               ),
             );
           },
         );
       },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(
+              begin: 0.96,
+              end: 1,
+            ).animate(curved),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _handleConversationAction(
+    NovaConversationAction action,
+  ) async {
+    if (_sending) return;
+    final label = action.label.trim();
+    final normalized = label.toLowerCase();
+    final lastAssistant = _lastAssistantLine();
+    final context = lastAssistant?.explanation?.trim().isNotEmpty == true
+        ? lastAssistant!.explanation!.trim()
+        : lastAssistant?.text.trim() ?? '';
+
+    Future<Map<String, dynamic>>? request;
+    var openBrainAfter = false;
+
+    if (normalized.contains('continuar projeto')) {
+      request = _api.continueProjectAction(
+        userId: _jarvisUserId(),
+        context: context,
+      );
+    } else if (normalized.contains('gerar codigo')) {
+      request = _api.generateCodeAction(
+        userId: _jarvisUserId(),
+        context: context,
+      );
+    } else if (normalized.contains('melhorar interface')) {
+      request = _api.improveInterfaceAction(
+        userId: _jarvisUserId(),
+        context: context,
+      );
+    } else if (normalized.contains('continuar daqui')) {
+      request = _api.continueFromHereAction(
+        userId: _jarvisUserId(),
+        lastAnswer: context,
+        context: context,
+      );
+    } else if (normalized.contains('memoria') || normalized.contains('notas')) {
+      request = _api.openMemoryAction(userId: _jarvisUserId());
+      openBrainAfter = true;
+    }
+
+    if (request == null) {
+      await _executeCommand(action.prompt, fromVoice: false);
+      return;
+    }
+
+    setState(() {
+      _chat.add(NovaChatLine(fromUser: true, text: label));
+      _sending = true;
+      _assistantState = NovaAssistantState.thinking;
+      _systemStatus = 'Executando ação rápida...';
+    });
+
+    try {
+      final payload = await request;
+      if (!mounted) return;
+      final assistantLine = _assistantLineFromPayload(label, payload);
+      setState(() {
+        _chat.add(assistantLine);
+        _assistantState = NovaAssistantState.suggesting;
+        _systemStatus = 'Ação rápida concluída.';
+      });
+      if (openBrainAfter) {
+        await _openBrainDialog();
+      }
+    } catch (error) {
+      if (!mounted) return;
+      final message = _humanizeApiError(
+        error,
+        fallback: 'Não consegui concluir essa ação agora.',
+      );
+      setState(() {
+        _chat.add(
+          NovaChatLine(
+            fromUser: false,
+            text: message,
+            summary: 'Ação rápida indisponível no momento.',
+            explanation: message,
+            actions: _defaultConversationActions(),
+            state: NovaAssistantState.responding,
+          ),
+        );
+        _assistantState = NovaAssistantState.responding;
+        _systemStatus = 'Falha ao executar ação rápida.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _sending = false;
+          if (_assistantState == NovaAssistantState.responding) {
+            _assistantState = NovaAssistantState.idle;
+          }
+        });
+      }
+    }
+  }
+
+  Future<void> _handleModuleTap(NovaModuleSnapshot module) async {
+    final normalized = module.title.toLowerCase();
+    if (normalized.contains('cerebro')) {
+      await _openBrainDialog();
+      return;
+    }
+    if (normalized.contains('dev')) {
+      await _handleConversationAction(
+        _actionObjectsFromLabels(const ['Gerar codigo']).first,
+      );
+      return;
+    }
+    if (normalized.contains('pesquisa')) {
+      await _executeCommand(
+        'Nova, pesquise na web e compare as melhores referências para o contexto atual.',
+        fromVoice: false,
+      );
+      return;
+    }
+    if (normalized.contains('finance')) {
+      await _executeCommand(
+        'Nova, analise custos, viabilidade e plano mensal do contexto atual.',
+        fromVoice: false,
+      );
+      return;
+    }
+    if (normalized.contains('autom')) {
+      await _executeCommand(
+        'Nova, organize o fluxo atual, crie um checklist e sugira a próxima automação.',
+        fromVoice: false,
+      );
+    }
+  }
+
+  List<NovaConversationAction> _actionsForLine(NovaChatLine line) {
+    final merged = <NovaConversationAction>[
+      ...line.actions,
+      ...line.suggestions.where(
+        (item) => !line.actions
+            .map((existing) => existing.label.toLowerCase())
+            .contains(item.label.toLowerCase()),
+      ),
+    ];
+    return merged.take(4).toList();
+  }
+
+  Widget _buildChatThread({
+    required bool compact,
+    required bool wideChat,
+  }) {
+    final visibleLines = _visibleChatLines();
+    return GlassContainer(
+      borderRadius: 34,
+      padding: EdgeInsets.zero,
+      blur: 24,
+      opacity: context.isNovaDark ? 0.14 : 0.26,
+      child: ListView.builder(
+        reverse: true,
+        padding: EdgeInsets.fromLTRB(
+          compact ? 14 : 18,
+          compact ? 18 : 22,
+          compact ? 14 : 18,
+          compact ? 18 : 22,
+        ),
+        itemCount: visibleLines.length + (_sending ? 1 : 0),
+        itemBuilder: (context, index) {
+          if (_sending && index == 0) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: NovaMessageBubble(
+                fromUser: false,
+                text: _assistantState == NovaAssistantState.executing
+                    ? 'Estou executando o próximo passo e organizando a resposta.'
+                    : 'Estou entendendo o contexto antes de responder.',
+                timestamp: DateTime.now(),
+                isLive: true,
+              ),
+            );
+          }
+
+          final adjustedIndex = _sending ? index - 1 : index;
+          final line = visibleLines[visibleLines.length - 1 - adjustedIndex];
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: NovaMessageBubble(
+              fromUser: line.fromUser,
+              text: line.text,
+              summary: line.summary,
+              timestamp: line.timestamp,
+              actions: line.fromUser ? const [] : _actionsForLine(line),
+              onActionTap: line.fromUser ? null : _handleConversationAction,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildPinnedConversationCard({
+    required bool compact,
+  }) {
+    final line = _pinnedConversationLine();
+    final actions = _actionsForLine(line);
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(
+        compact ? 18 : 22,
+        compact ? 18 : 20,
+        compact ? 18 : 22,
+        compact ? 16 : 18,
+      ),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: context.isNovaDark
+              ? const [
+                  Color(0xFF2D3A4D),
+                  Color(0xFF34465F),
+                ]
+              : const [
+                  Color(0xFF32435D),
+                  Color(0xFF41546F),
+                ],
+        ),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.14),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.16),
+            blurRadius: 26,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const NovaMetalLogo(size: 46),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 2),
+                    const Text(
+                      'NOVA',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      line.summary?.trim().isNotEmpty == true
+                          ? line.summary!.trim()
+                          : _contextualGreetingHeadline(),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: compact ? 15.5 : 16.5,
+                        fontWeight: FontWeight.w800,
+                        height: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1D7F4E).withValues(alpha: 0.22),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: const Color(0xFF22C55E).withValues(alpha: 0.48),
+                  ),
+                ),
+                child: Text(
+                  _assistantState.label,
+                  style: const TextStyle(
+                    color: Color(0xFF22C55E),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            line.explanation?.trim().isNotEmpty == true
+                ? line.explanation!.trim()
+                : _contextualGreetingBriefing(),
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.84),
+              fontSize: compact ? 13.8 : 14.4,
+              height: 1.45,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          if (actions.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Próximo passo',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.72),
+                fontSize: 12.2,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: actions
+                  .take(4)
+                  .map(
+                    (action) => GestureDetector(
+                      onTap: () => _handleConversationAction(action),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: compact ? 14 : 16,
+                          vertical: compact ? 11 : 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.16),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              action.icon ?? Icons.arrow_forward_rounded,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              action.label,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Text(
+            '${line.timestamp.hour.toString().padLeft(2, '0')}:${line.timestamp.minute.toString().padLeft(2, '0')}',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.56),
+              fontSize: 11.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSidebarColumn() {
+    final memoryItems = _memoryRailItems();
+    final documentItems = _documentHighlights();
+    final colors = context.novaColors;
+
+    return Column(
+      children: [
+        NovaSidebarBio(
+          statusLabel: _assistantState.label,
+          contextText: _conversationContextLabel(),
+          onOpenMemory: _openBrainDialog,
+        ),
+        const SizedBox(height: 14),
+        NovaModulesPanel(
+          modules: _contextModules(),
+          onModuleTap: _handleModuleTap,
+        ),
+        const SizedBox(height: 14),
+        GlassContainer(
+          borderRadius: 30,
+          blur: 20,
+          opacity: context.isNovaDark ? 0.16 : 0.26,
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Memória ativa',
+                style: TextStyle(
+                  color: colors.textPrimary,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                _systemStatus,
+                style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: 12.5,
+                  height: 1.45,
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (memoryItems.isEmpty)
+                Text(
+                  'As últimas memórias e documentos processados aparecem aqui para acelerar a retomada.',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 13.2,
+                    height: 1.5,
+                  ),
+                )
+              else
+                ...memoryItems.take(3).map(
+                      (item) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Text(
+                          '• $item',
+                          style: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: 13,
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                    ),
+              if (documentItems.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Documentos',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...documentItems.take(3).map(
+                      (item) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          '• $item',
+                          style: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: 12.8,
+                            height: 1.45,
+                          ),
+                        ),
+                      ),
+                    ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -4459,56 +5639,46 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     required bool compressed,
     bool wideChat = false,
   }) {
-    final topGap = compressed ? 8.0 : 12.0;
-    final composerGap = compressed ? 8.0 : 10.0;
+    final topGap = compressed ? 10.0 : 14.0;
+    final composerGap = compressed ? 10.0 : 14.0;
     return Column(
       children: [
         NovaTopBar(
-          onOpenQuickMenu: _openQuickMenu,
-          onOpenUsersDialog: _openUsersDialog,
-          onPickQuickPhoto: _pickQuickPhoto,
+          onMenuTap: _openQuickMenu,
+          onUserTap: _openUsersDialog,
+          onCameraTap: _pickQuickPhoto,
+          contextText: _conversationContextLabel(),
+          status: _assistantState,
+        ),
+        SizedBox(height: topGap),
+        _buildPinnedConversationCard(
           compact: compact,
-          compressed: compressed,
         ),
         SizedBox(height: topGap),
         Expanded(
-          child: NovaChatTimeline(
-            chat: _chat,
+          child: _buildChatThread(
             compact: compact,
-            wide: wideChat,
+            wideChat: wideChat,
           ),
         ),
         SizedBox(height: composerGap),
-        NovaComposer(
-          messageController: _messageController,
-          composerAttachmentName: _composerAttachmentName,
-          speechReady: _speechReady,
+        NovaChatInput(
+          controller: _messageController,
+          attachmentName: _composerAttachment?.name,
+          onRemoveAttachment: _composerAttachment == null
+              ? null
+              : () {
+                  setState(() => _composerAttachment = null);
+                },
           isListening: _isListening,
-          sending: _sending,
-          compact: compact,
-          compressed: compressed,
-          onPickComposerAttachment: _pickComposerAttachment,
-          onToggleListening: _toggleListening,
-          onInitSpeech: () {
-            _initSpeech();
-          },
-          onSendMessage: _handleSendMessage,
+          sending: _sending || _preparingAttachment,
+          compact: compact || compressed,
+          onAdd: _pickComposerAttachment,
+          onMic: _speechReady ? _toggleListening : _initSpeech,
+          onSend: _handleSendMessage,
         ),
       ],
     );
-  }
-
-  List<String> _projectExamples() {
-    return const [
-      'Nova, crie um projeto chamado Atlas Comercial na área Comercial',
-      'Novo projeto "Portal do Cliente" com prioridade alta',
-      'Crie um projeto com descrição MVP B2B e link https://exemplo.com',
-      'Traduza "Bom dia, equipe" para ingles',
-      'Pesquise sobre electric cars e, quando eu perguntar, responda sim para traduzir',
-      'Nova, me fale essa pesquisa em ingles',
-      'Agende reunião com cliente amanhã às 15h',
-      'Marque foco de estudos em 2026-05-01 19:00 até 20:30',
-    ];
   }
 
   @override
@@ -4532,7 +5702,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               builder: (context, viewport) {
                 final useWideLayout = viewport.maxWidth >= 980;
                 final compressed = viewport.maxHeight < 650;
-
                 final chatShell = ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: shellMaxWidth),
                   child: LayoutBuilder(
@@ -4555,63 +5724,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   return Center(child: chatShell);
                 }
 
-                final railWidth = viewport.maxWidth >= 1400 ? 360.0 : 320.0;
+                final sidebarWidth = viewport.maxWidth >= 1480 ? 338.0 : 304.0;
                 return Padding(
                   padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
                   child: Row(
                     children: [
-                      SizedBox(
-                        width: railWidth,
-                        child: NovaWorkspaceRail(
-                          greeting: '${_periodGreeting()}!',
-                          systemStatus: _systemStatus,
-                          apiBaseUrl: _api.baseUrl,
-                          wakeWord: _config['wake_word']
-                                      ?.toString()
-                                      .trim()
-                                      .isNotEmpty ==
-                                  true
-                              ? _config['wake_word'].toString().trim()
-                              : 'nova',
-                          voiceEnabled: _ttsEnabled,
-                          speechReady: _speechReady,
-                          autonomyEnabled: _config['autonomia_ativa'] == true,
-                          continuousWake: _effectiveContinuousWake,
-                          examples: _projectExamples(),
-                          jarvisMode: (_jarvisStatus['mode']?.toString() ??
-                                  'jarvis_phase1')
-                              .replaceAll('_', ' ')
-                              .toUpperCase(),
-                          toolsTotal: _jarvisTools.isNotEmpty
-                              ? _jarvisTools.length
-                              : ((_jarvisStatus['tools_total'] as num?)
-                                      ?.toInt() ??
-                                  0),
-                          memoryItems: _memoryRailItems(),
-                          brainItems: _brainRailItems(),
-                          brainNotesTotal:
-                              (_brainGraph['total_notes'] as num?)?.toInt() ??
-                                  _brainNotes.length,
-                          brainSuggestionsTotal: _brainSuggestions.length,
-                          toolNames: _jarvisTools
-                              .map((item) =>
-                                  item['name']?.toString().trim() ?? '')
-                              .where((name) => name.isNotEmpty)
-                              .toList(),
-                          voicePhase:
-                              _voiceStatus['phase']?.toString().trim() ??
-                                  'planned',
-                          onOpenBrainDialog: () {
-                            _openBrainDialog();
-                          },
-                          compressed: compressed,
-                        ),
-                      ),
-                      const SizedBox(width: 18),
                       Expanded(
                         child: Align(
                           alignment: Alignment.center,
                           child: chatShell,
+                        ),
+                      ),
+                      const SizedBox(width: 18),
+                      SizedBox(
+                        width: sidebarWidth,
+                        child: SingleChildScrollView(
+                          child: _buildSidebarColumn(),
                         ),
                       ),
                     ],

@@ -182,6 +182,7 @@ class AttachmentAnalysisService {
         },
         'image': metadata ?? const <String, dynamic>{},
         'detected_labels': detectedLabels,
+        'recognized_text': normalized,
         'executive_summary': summary,
         'keywords': topKeywords,
         'risks': risks,
@@ -245,6 +246,7 @@ class AttachmentAnalysisService {
     };
     report['image'] = image;
     report['detected_labels'] = detectedLabels;
+    report['recognized_text'] = recognizedText;
     report['keywords'] = keywords;
     report['sample_excerpts'] = excerpts;
     payload['report'] = report;

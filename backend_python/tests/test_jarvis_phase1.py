@@ -194,6 +194,13 @@ class JarvisPhase1Tests(unittest.TestCase):
         self.assertEqual(len(payloads), 1)
         self.assertTrue(payloads[0]["ok"])
         self.assertEqual(payloads[0]["tool_name"], "summarize_text")
+        self.assertIn("resumo", payloads[0])
+        self.assertIn("explicacao", payloads[0])
+        self.assertIn("acoes", payloads[0])
+        self.assertIn("sugestoes", payloads[0])
+        self.assertIn("assistant_state", payloads[0])
+        self.assertTrue(payloads[0]["resumo"])
+        self.assertTrue(payloads[0]["acoes"])
 
     def test_structured_chat_keeps_sensitive_approval_between_messages(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -236,6 +243,9 @@ class JarvisPhase1Tests(unittest.TestCase):
         self.assertTrue(payloads[0]["approval_needed"])
         self.assertIn("control_home", payloads[0]["reply"])
         self.assertIn("reply", payloads[1])
+        self.assertEqual(payloads[0]["assistant_state"], "suggesting")
+        self.assertTrue(payloads[0]["acoes"])
+        self.assertTrue(payloads[1]["sugestoes"])
 
 
 if __name__ == "__main__":

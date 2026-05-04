@@ -171,6 +171,108 @@ void main() {
     expect(body['byte_size'], 2048);
   });
 
+  test('sendJarvisMessage inclui file_id e contexto adicional', () async {
+    late Map<String, dynamic> body;
+
+    final service = ChatApiService(
+      baseUrl: 'http://127.0.0.1:8000',
+      httpExecutor: (
+        String method,
+        Uri uri, {
+        required Map<String, String> headers,
+        String? encodedBody,
+      }) async {
+        expect(method, 'POST');
+        expect(uri.toString(), 'http://127.0.0.1:8000/chat');
+        body = jsonDecode(encodedBody!) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({
+            'ok': true,
+            'reply': 'Arquivo analisado com sucesso.',
+          }),
+          200,
+        );
+      },
+    );
+
+    final payload = await service.sendJarvisMessage(
+      'Analise o anexo',
+      userId: 'gabriel',
+      fileId: 'arquivo_123',
+      context: 'interface do projeto NOVA',
+    );
+
+    expect(payload['ok'], isTrue);
+    expect(body['user_id'], 'gabriel');
+    expect(body['file_id'], 'arquivo_123');
+    expect(body['context'], 'interface do projeto NOVA');
+  });
+
+  test('uploadFile e analyzeUploadedFile usam o contrato novo de arquivos',
+      () async {
+    final calls = <String>[];
+    late Map<String, dynamic> uploadBody;
+    late Map<String, dynamic> analyzeBody;
+
+    final service = ChatApiService(
+      baseUrl: 'http://127.0.0.1:8000',
+      httpExecutor: (
+        String method,
+        Uri uri, {
+        required Map<String, String> headers,
+        String? encodedBody,
+      }) async {
+        calls.add(uri.toString());
+        final decoded = jsonDecode(encodedBody!) as Map<String, dynamic>;
+        if (uri.path == '/files/upload') {
+          uploadBody = decoded;
+          return http.Response(
+            jsonEncode({
+              'ok': true,
+              'file_id': 'file_001',
+            }),
+            200,
+          );
+        }
+        if (uri.path == '/files/analyze') {
+          analyzeBody = decoded;
+          return http.Response(
+            jsonEncode({
+              'ok': true,
+              'answer': 'Analisei o arquivo enviado.',
+              'next_actions': const ['Gerar codigo'],
+            }),
+            200,
+          );
+        }
+        fail('Chamada inesperada: ${uri.toString()}');
+      },
+    );
+
+    final upload = await service.uploadFile(
+      fileName: 'briefing.txt',
+      bytes: Uint8List.fromList(utf8.encode('conteudo importante')),
+      mimeType: 'text/plain',
+    );
+    final analysis = await service.analyzeUploadedFile(
+      fileId: upload['file_id'].toString(),
+      question: 'Resuma isso',
+      context: 'Projeto NOVA',
+    );
+
+    expect(upload['file_id'], 'file_001');
+    expect(analysis['ok'], isTrue);
+    expect(uploadBody['filename'], 'briefing.txt');
+    expect(uploadBody['mime_type'], 'text/plain');
+    expect(analyzeBody['file_id'], 'file_001');
+    expect(analyzeBody['question'], 'Resuma isso');
+    expect(analyzeBody['context'], 'Projeto NOVA');
+    expect(calls, [
+      'http://127.0.0.1:8000/files/upload',
+      'http://127.0.0.1:8000/files/analyze',
+    ]);
+  });
+
   test('brain endpoints carregam notas e sugestoes do vault', () async {
     final called = <String>[];
 

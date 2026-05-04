@@ -10,6 +10,7 @@ except Exception:
 
 from .dependencies import rate_limit
 from api_server import processar_mensagem
+from .routes_files import build_file_chat_context
 from routes.chat_routes import handle_chat_post
 
 
@@ -38,7 +39,20 @@ if APIRouter is not None:
 
     @router.post("/chat")
     def chat(body: dict):
-        payload, status_code = _dispatch_chat(body if isinstance(body, dict) else {})
+        payload_body = body if isinstance(body, dict) else {}
+        file_id = str(payload_body.get("file_id", "")).strip()
+        if file_id:
+            attachment = build_file_chat_context(file_id)
+            if attachment:
+                prompt_context = str(attachment.get("prompt_context", "")).strip()
+                inbound_text = str(
+                    payload_body.get("text", payload_body.get("message", ""))
+                ).strip()
+                if not inbound_text:
+                    inbound_text = "Analise o arquivo anexado e responda com base nele."
+                payload_body = dict(payload_body)
+                payload_body["text"] = f"{inbound_text}\n\n{prompt_context}".strip()
+        payload, status_code = _dispatch_chat(payload_body)
         return JSONResponse(content=payload, status_code=status_code)
 
 else:

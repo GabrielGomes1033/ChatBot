@@ -46,21 +46,23 @@ class NovaInputField extends StatelessWidget {
             : Icon(prefixIcon, size: 18, color: colors.textSecondary),
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: colors.surface,
+        fillColor: colors.glass.withValues(
+          alpha: context.isNovaDark ? 0.14 : 0.42,
+        ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 14,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: colors.border),
+          borderRadius: BorderRadius.circular(20),
+          borderSide: BorderSide(color: colors.glassBorder),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: colors.border),
+          borderRadius: BorderRadius.circular(20),
+          borderSide: BorderSide(color: colors.glassBorder),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           borderSide: BorderSide(color: colors.primary, width: 1.4),
         ),
       ),

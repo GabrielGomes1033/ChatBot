@@ -66,8 +66,10 @@ class NovaButton extends StatelessWidget {
             foregroundColor: Colors.white,
             disabledBackgroundColor: colors.primary.withValues(alpha: 0.55),
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            elevation: 0,
+            shadowColor: colors.primary.withValues(alpha: 0.38),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(18),
             ),
             textStyle: const TextStyle(
               fontSize: 15,
@@ -81,11 +83,13 @@ class NovaButton extends StatelessWidget {
           onPressed: isLoading ? null : onPressed,
           style: OutlinedButton.styleFrom(
             foregroundColor: colors.textPrimary,
-            side: BorderSide(color: colors.border),
-            backgroundColor: colors.surface.withValues(alpha: 0.72),
+            side: BorderSide(color: colors.glassBorder),
+            backgroundColor: colors.glass.withValues(
+              alpha: context.isNovaDark ? 0.18 : 0.34,
+            ),
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(18),
             ),
             textStyle: const TextStyle(
               fontSize: 15,
@@ -148,17 +152,24 @@ class NovaPillIconButton extends StatelessWidget {
       decoration: BoxDecoration(
         color: selected
             ? colors.primarySoft
-            : colors.surface.withValues(alpha: 0.74),
-        borderRadius: BorderRadius.circular(size / 2),
+            : Colors.white.withValues(alpha: context.isNovaDark ? 0.08 : 0.54),
+        shape: BoxShape.circle,
         border: Border.all(
-          color: selected ? colors.primary : colors.border,
+          color: selected ? colors.primary : colors.glassBorder,
         ),
         boxShadow: [
           BoxShadow(
             color: colors.shadow
                 .withValues(alpha: context.isNovaDark ? 0.36 : 0.08),
-            blurRadius: 18,
+            blurRadius: 16,
             offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: colors.glassHighlight.withValues(
+              alpha: context.isNovaDark ? 0.08 : 0.42,
+            ),
+            blurRadius: 6,
+            offset: const Offset(-2, -2),
           ),
         ],
       ),

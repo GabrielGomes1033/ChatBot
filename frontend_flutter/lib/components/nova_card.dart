@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../theme/colors.dart';
+import '../widgets/glass_container.dart';
 
 enum NovaCardStyle {
   standard,
@@ -35,42 +36,9 @@ class NovaCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.novaColors;
 
-    final Color background = switch (style) {
-      NovaCardStyle.standard => colors.surface.withValues(
-          alpha: context.isNovaDark ? 0.96 : 0.98,
-        ),
-      NovaCardStyle.muted => colors.surfaceMuted.withValues(
-          alpha: context.isNovaDark ? 0.94 : 0.98,
-        ),
-      NovaCardStyle.glass => colors.glass,
-      NovaCardStyle.brand => colors.brandSurface,
-    };
-
-    final Color borderColor = switch (style) {
-      NovaCardStyle.brand => colors.brandGlow.withValues(alpha: 0.9),
-      _ => colors.border.withValues(alpha: context.isNovaDark ? 0.74 : 0.92),
-    };
-
-    final shadowColor = style == NovaCardStyle.brand
-        ? colors.brandGlow
-        : colors.shadow.withValues(alpha: context.isNovaDark ? 0.32 : 0.10);
-
     final inner = AnimatedContainer(
       duration: const Duration(milliseconds: 240),
       curve: Curves.easeOutCubic,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: shadowColor,
-            blurRadius: style == NovaCardStyle.brand ? 30 : 18,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -100,16 +68,81 @@ class NovaCard extends StatelessWidget {
       ),
     );
 
-    if (style != NovaCardStyle.glass) {
-      return inner;
+    switch (style) {
+      case NovaCardStyle.standard:
+        return GlassContainer(
+          borderRadius: radius,
+          padding: padding,
+          blur: 14,
+          opacity: context.isNovaDark ? 0.10 : 0.20,
+          child: inner,
+        );
+      case NovaCardStyle.muted:
+        return GlassContainer(
+          borderRadius: radius,
+          padding: padding,
+          blur: 12,
+          opacity: context.isNovaDark ? 0.08 : 0.16,
+          borderColor: colors.glassHighlight.withValues(
+            alpha: context.isNovaDark ? 0.18 : 0.58,
+          ),
+          child: inner,
+        );
+      case NovaCardStyle.glass:
+        return GlassContainer(
+          borderRadius: radius,
+          padding: padding,
+          blur: 20,
+          opacity: context.isNovaDark ? 0.16 : 0.28,
+          child: inner,
+        );
+      case NovaCardStyle.brand:
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(radius),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+            child: Container(
+              padding: padding,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    colors.brandSurface,
+                    Color.lerp(
+                      colors.brandSurface,
+                      colors.primary,
+                      context.isNovaDark ? 0.16 : 0.22,
+                    )!,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(radius),
+                border: Border.all(
+                  color: colors.glassHighlight.withValues(
+                    alpha: context.isNovaDark ? 0.26 : 0.48,
+                  ),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: colors.brandGlow.withValues(
+                      alpha: context.isNovaDark ? 0.32 : 0.26,
+                    ),
+                    blurRadius: 30,
+                    offset: const Offset(0, 14),
+                  ),
+                  BoxShadow(
+                    color: colors.glassHighlight.withValues(
+                      alpha: context.isNovaDark ? 0.08 : 0.28,
+                    ),
+                    blurRadius: 8,
+                    offset: const Offset(-2, -2),
+                  ),
+                ],
+              ),
+              child: inner,
+            ),
+          ),
+        );
     }
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-        child: inner,
-      ),
-    );
   }
 }

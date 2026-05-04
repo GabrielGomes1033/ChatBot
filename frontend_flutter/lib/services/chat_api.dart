@@ -360,17 +360,26 @@ class ChatApiService {
     String userId = 'frontend',
     String mode = 'normal',
     bool autoApprove = false,
+    String? fileId,
+    String? context,
   }) async {
+    final body = <String, dynamic>{
+      'user_id': userId,
+      'text': message,
+      'mode': mode,
+      'auto_approve': autoApprove,
+    };
+    if ((fileId ?? '').trim().isNotEmpty) {
+      body['file_id'] = fileId!.trim();
+    }
+    if ((context ?? '').trim().isNotEmpty) {
+      body['context'] = context!.trim();
+    }
     try {
       final payload = await _requestJson(
         'POST',
         '/chat',
-        body: {
-          'user_id': userId,
-          'text': message,
-          'mode': mode,
-          'auto_approve': autoApprove,
-        },
+        body: body,
       );
       final reply = payload['reply']?.toString().trim() ?? '';
       if (reply.isNotEmpty &&
@@ -378,10 +387,26 @@ class ChatApiService {
           reply.toLowerCase() != 'mensagem vazia') {
         return payload;
       }
-      return _requestJson('POST', '/chat', body: {'message': message});
+      return _requestJson(
+        'POST',
+        '/chat',
+        body: {
+          'message': message,
+          if ((fileId ?? '').trim().isNotEmpty) 'file_id': fileId!.trim(),
+          if ((context ?? '').trim().isNotEmpty) 'context': context!.trim(),
+        },
+      );
     } on ApiHttpException catch (e) {
       if (e.statusCode != 404 && e.statusCode != 400) rethrow;
-      return _requestJson('POST', '/chat', body: {'message': message});
+      return _requestJson(
+        'POST',
+        '/chat',
+        body: {
+          'message': message,
+          if ((fileId ?? '').trim().isNotEmpty) 'file_id': fileId!.trim(),
+          if ((context ?? '').trim().isNotEmpty) 'context': context!.trim(),
+        },
+      );
     }
   }
 
@@ -1064,6 +1089,183 @@ class ChatApiService {
         'metadata': metadata,
         'from_camera': fromCamera,
         'byte_size': byteSize,
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> uploadFile({
+    required String fileName,
+    required Uint8List bytes,
+    String mimeType = '',
+    String source = 'upload',
+  }) {
+    return _requestJson(
+      'POST',
+      '/files/upload',
+      body: {
+        'filename': fileName,
+        'content_base64': base64Encode(bytes),
+        'mime_type': mimeType,
+        'source': source,
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> analyzeUploadedFile({
+    required String fileId,
+    String question = '',
+    String context = '',
+    String recognizedText = '',
+    List<Map<String, dynamic>> labels = const [],
+    Map<String, dynamic> metadata = const {},
+    bool fromCamera = false,
+  }) {
+    return _requestJson(
+      'POST',
+      '/files/analyze',
+      body: {
+        'file_id': fileId,
+        'question': question,
+        'context': context,
+        'recognized_text': recognizedText,
+        'labels': labels,
+        'metadata': metadata,
+        'from_camera': fromCamera,
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> analyzeCameraCapture({
+    required String fileName,
+    required Uint8List bytes,
+    String mimeType = 'image/jpeg',
+    String question = '',
+    String context = '',
+    String recognizedText = '',
+    List<Map<String, dynamic>> labels = const [],
+    Map<String, dynamic> metadata = const {},
+  }) {
+    return _requestJson(
+      'POST',
+      '/camera/analyze',
+      body: {
+        'filename': fileName,
+        'content_base64': base64Encode(bytes),
+        'mime_type': mimeType,
+        'question': question,
+        'context': context,
+        'recognized_text': recognizedText,
+        'labels': labels,
+        'metadata': metadata,
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> _postAction(
+    String path, {
+    String userId = 'frontend',
+    Map<String, dynamic> extra = const {},
+  }) {
+    return _requestJson(
+      'POST',
+      path,
+      body: {
+        'user_id': userId,
+        ...extra,
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> continueProjectAction({
+    String userId = 'frontend',
+    String context = '',
+  }) {
+    return _postAction(
+      '/actions/continue-project',
+      userId: userId,
+      extra: {
+        if (context.trim().isNotEmpty) 'context': context.trim(),
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> generateCodeAction({
+    String userId = 'frontend',
+    String context = '',
+    String language = '',
+  }) {
+    return _postAction(
+      '/actions/generate-code',
+      userId: userId,
+      extra: {
+        if (context.trim().isNotEmpty) 'context': context.trim(),
+        if (language.trim().isNotEmpty) 'language': language.trim(),
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> improveInterfaceAction({
+    String userId = 'frontend',
+    String context = '',
+  }) {
+    return _postAction(
+      '/actions/improve-interface',
+      userId: userId,
+      extra: {
+        if (context.trim().isNotEmpty) 'context': context.trim(),
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> continueFromHereAction({
+    String userId = 'frontend',
+    String lastAnswer = '',
+    String context = '',
+  }) {
+    return _postAction(
+      '/actions/continue-from-here',
+      userId: userId,
+      extra: {
+        if (lastAnswer.trim().isNotEmpty) 'last_answer': lastAnswer.trim(),
+        if (context.trim().isNotEmpty) 'context': context.trim(),
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> openMemoryPanel({
+    String userId = 'frontend',
+    int limit = 8,
+  }) {
+    return _postAction(
+      '/memory/open',
+      userId: userId,
+      extra: {'limit': limit},
+    );
+  }
+
+  Future<Map<String, dynamic>> openMemoryAction({
+    String userId = 'frontend',
+  }) {
+    return _postAction(
+      '/actions/open-memory',
+      userId: userId,
+    );
+  }
+
+  Future<Map<String, dynamic>> generateDevCode({
+    required String prompt,
+    String language = '',
+    String projectName = '',
+    bool autoConfirm = false,
+  }) {
+    return _requestJson(
+      'POST',
+      '/dev/generate',
+      body: {
+        'prompt': prompt,
+        'language': language,
+        'project_name': projectName,
+        'auto_confirm': autoConfirm,
       },
     );
   }

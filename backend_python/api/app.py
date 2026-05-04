@@ -14,6 +14,8 @@ from .routes_actions import router as actions_router
 from .routes_brain import router as brain_router
 from .routes_chat import router as chat_router
 from .routes_compat import router as compat_router
+from .routes_dev import router as dev_router
+from .routes_files import camera_router, router as files_router
 from .routes_location import router as location_router
 from .routes_memory import router as memory_router
 from .routes_system import router as system_router
@@ -91,9 +93,15 @@ def create_app():
 
     app.include_router(chat_router)
     app.include_router(memory_router)
+    if files_router is not None:
+        app.include_router(files_router)
+    if camera_router is not None:
+        app.include_router(camera_router)
     if brain_router is not None:
         app.include_router(brain_router)
     app.include_router(actions_router)
+    if dev_router is not None:
+        app.include_router(dev_router)
     app.include_router(voice_router)
 
     if compat_router is not None:

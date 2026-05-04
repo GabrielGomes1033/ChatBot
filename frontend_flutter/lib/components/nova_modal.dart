@@ -32,70 +32,152 @@ class NovaModalFrame extends StatelessWidget {
           maxWidth: targetWidth,
           maxHeight: targetHeight,
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-            child: Container(
-              decoration: BoxDecoration(
-                color: colors.glass,
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(
-                  color: colors.border.withValues(
-                    alpha: context.isNovaDark ? 0.82 : 0.94,
-                  ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              top: -34,
+              left: 44,
+              child: _NovaModalOrb(
+                size: size.width < 560 ? 120 : 168,
+                color: colors.primarySoft.withValues(
+                  alpha: context.isNovaDark ? 0.28 : 0.70,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: colors.shadow.withValues(
-                      alpha: context.isNovaDark ? 0.42 : 0.14,
-                    ),
-                    blurRadius: 34,
-                    offset: const Offset(0, 18),
-                  ),
-                ],
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 18, 10, 16),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: colors.textPrimary,
-                              fontSize: size.width < 460 ? 20 : 24,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -0.4,
-                            ),
-                          ),
+            ),
+            Positioned(
+              right: -28,
+              bottom: 20,
+              child: _NovaModalOrb(
+                size: size.width < 560 ? 132 : 190,
+                color: colors.glassHighlight.withValues(
+                  alpha: context.isNovaDark ? 0.08 : 0.28,
+                ),
+              ),
+            ),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(30),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withValues(
+                          alpha: context.isNovaDark ? 0.10 : 0.38,
                         ),
-                        ...actions,
-                        IconButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          icon: Icon(
-                            Icons.close_rounded,
-                            color: colors.textSecondary,
-                          ),
+                        colors.surface.withValues(
+                          alpha: context.isNovaDark ? 0.18 : 0.56,
                         ),
                       ],
                     ),
-                  ),
-                  Divider(height: 1, color: colors.border),
-                  Flexible(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(20),
-                      child: child,
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(
+                      color: colors.glassBorder.withValues(
+                        alpha: context.isNovaDark ? 0.84 : 0.98,
+                      ),
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: colors.shadow.withValues(
+                          alpha: context.isNovaDark ? 0.42 : 0.14,
+                        ),
+                        blurRadius: 38,
+                        offset: const Offset(0, 18),
+                      ),
+                      BoxShadow(
+                        color: colors.glassHighlight.withValues(
+                          alpha: context.isNovaDark ? 0.08 : 0.30,
+                        ),
+                        blurRadius: 8,
+                        offset: const Offset(-2, -2),
+                      ),
+                    ],
                   ),
-                ],
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(22, 20, 12, 16),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: colors.textPrimary,
+                                  fontSize: size.width < 460 ? 20 : 24,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.4,
+                                ),
+                              ),
+                            ),
+                            ...actions,
+                            Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withValues(
+                                  alpha: context.isNovaDark ? 0.08 : 0.46,
+                                ),
+                                border: Border.all(color: colors.glassBorder),
+                              ),
+                              child: IconButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                icon: Icon(
+                                  Icons.close_rounded,
+                                  color: colors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Divider(height: 1, color: colors.glassBorder),
+                      Flexible(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(20),
+                          child: child,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NovaModalOrb extends StatelessWidget {
+  const _NovaModalOrb({
+    required this.size,
+    required this.color,
+  });
+
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [
+              color,
+              color.withValues(alpha: color.a * 0.24),
+              Colors.transparent,
+            ],
           ),
         ),
       ),

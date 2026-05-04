@@ -1,22 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'colors.dart';
 
 class AppTheme {
   static ThemeData get lightTheme =>
-      _buildTheme(palette: NovaColors.light, brightness: Brightness.light);
+      _buildTheme(palette: NovaPalette.light, brightness: Brightness.light);
 
   static ThemeData get darkTheme =>
-      _buildTheme(palette: NovaColors.dark, brightness: Brightness.dark);
+      _buildTheme(palette: NovaPalette.dark, brightness: Brightness.dark);
 
   static ThemeData _buildTheme({
-    required NovaColors palette,
+    required NovaPalette palette,
     required Brightness brightness,
   }) {
     final base = ThemeData(
       useMaterial3: true,
       brightness: brightness,
     );
+    final bodyFonts = GoogleFonts.plusJakartaSansTextTheme(base.textTheme);
+    final displayFonts = GoogleFonts.soraTextTheme(base.textTheme);
 
     final colorScheme = ColorScheme(
       brightness: brightness,
@@ -30,43 +33,43 @@ class AppTheme {
       onSurface: palette.textPrimary,
     );
 
-    final textTheme = base.textTheme.copyWith(
-      displaySmall: base.textTheme.displaySmall?.copyWith(
+    final textTheme = bodyFonts.copyWith(
+      displaySmall: displayFonts.displaySmall?.copyWith(
         color: palette.textPrimary,
         fontWeight: FontWeight.w700,
         letterSpacing: -1.1,
       ),
-      headlineMedium: base.textTheme.headlineMedium?.copyWith(
+      headlineMedium: displayFonts.headlineMedium?.copyWith(
         color: palette.textPrimary,
         fontWeight: FontWeight.w700,
         letterSpacing: -0.8,
       ),
-      headlineSmall: base.textTheme.headlineSmall?.copyWith(
+      headlineSmall: displayFonts.headlineSmall?.copyWith(
         color: palette.textPrimary,
         fontWeight: FontWeight.w700,
         letterSpacing: -0.4,
       ),
-      titleLarge: base.textTheme.titleLarge?.copyWith(
+      titleLarge: displayFonts.titleLarge?.copyWith(
         color: palette.textPrimary,
         fontWeight: FontWeight.w700,
       ),
-      titleMedium: base.textTheme.titleMedium?.copyWith(
+      titleMedium: bodyFonts.titleMedium?.copyWith(
         color: palette.textPrimary,
         fontWeight: FontWeight.w600,
       ),
-      bodyLarge: base.textTheme.bodyLarge?.copyWith(
+      bodyLarge: bodyFonts.bodyLarge?.copyWith(
         color: palette.textPrimary,
         height: 1.45,
       ),
-      bodyMedium: base.textTheme.bodyMedium?.copyWith(
+      bodyMedium: bodyFonts.bodyMedium?.copyWith(
         color: palette.textPrimary,
         height: 1.5,
       ),
-      bodySmall: base.textTheme.bodySmall?.copyWith(
+      bodySmall: bodyFonts.bodySmall?.copyWith(
         color: palette.textSecondary,
         height: 1.45,
       ),
-      labelLarge: base.textTheme.labelLarge?.copyWith(
+      labelLarge: bodyFonts.labelLarge?.copyWith(
         color: palette.textPrimary,
         fontWeight: FontWeight.w600,
       ),
@@ -77,7 +80,7 @@ class AppTheme {
       colorScheme: colorScheme,
       scaffoldBackgroundColor: palette.background,
       textTheme: textTheme,
-      dividerColor: palette.border,
+      dividerColor: palette.glassBorder,
       appBarTheme: AppBarTheme(
         centerTitle: false,
         elevation: 0,
@@ -94,23 +97,25 @@ class AppTheme {
         shadowColor: palette.shadow,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(28),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: palette.surface,
+        fillColor: palette.surface.withValues(
+          alpha: brightness == Brightness.dark ? 0.32 : 0.56,
+        ),
         hintStyle: TextStyle(color: palette.textSecondary),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: palette.border),
+          borderRadius: BorderRadius.circular(20),
+          borderSide: BorderSide(color: palette.glassBorder),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: palette.border),
+          borderRadius: BorderRadius.circular(20),
+          borderSide: BorderSide(color: palette.glassBorder),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           borderSide: BorderSide(color: palette.primary, width: 1.4),
         ),
       ),
@@ -120,7 +125,7 @@ class AppTheme {
           foregroundColor: Colors.white,
           textStyle: const TextStyle(fontWeight: FontWeight.w600),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         ),
@@ -128,18 +133,22 @@ class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: palette.textPrimary,
-          side: BorderSide(color: palette.border),
-          backgroundColor: palette.surface.withValues(alpha: 0.68),
+          side: BorderSide(color: palette.glassBorder),
+          backgroundColor: palette.glass.withValues(
+            alpha: brightness == Brightness.dark ? 0.24 : 0.42,
+          ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         ),
       ),
       chipTheme: base.chipTheme.copyWith(
-        backgroundColor: palette.surfaceMuted,
+        backgroundColor: palette.surfaceMuted.withValues(
+          alpha: brightness == Brightness.dark ? 0.82 : 0.78,
+        ),
         selectedColor: palette.primarySoft,
-        side: BorderSide(color: palette.border),
+        side: BorderSide(color: palette.glassBorder),
         labelStyle: TextStyle(color: palette.textPrimary),
       ),
       listTileTheme: ListTileThemeData(
