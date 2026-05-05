@@ -27,65 +27,152 @@ class NovaTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.novaColors;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final narrow = constraints.maxWidth < 620;
+        final veryNarrow = constraints.maxWidth < 430;
+        final wide = constraints.maxWidth >= 780;
+        final ultra = constraints.maxWidth >= 920;
+        final controlSize =
+            ultra ? 48.0 : (veryNarrow ? 40.0 : (narrow ? 42.0 : 46.0));
+        final logoSize =
+            ultra ? 56.0 : (veryNarrow ? 42.0 : (narrow ? 46.0 : 52.0));
+        final horizontalPadding = ultra ? 18.0 : (veryNarrow ? 10.0 : 14.0);
+        final verticalPadding = ultra ? 14.0 : (narrow ? 10.0 : 12.0);
 
-    return GlassContainer(
-      borderRadius: 28,
-      blur: 22,
-      opacity: context.isNovaDark ? 0.16 : 0.30,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Row(
-        children: [
-          _TopCircleButton(
-            icon: Icons.grid_view_rounded,
-            onTap: onMenuTap,
-            tooltip: 'Menu rápido',
-          ),
-          const SizedBox(width: 12),
-          const NovaMetalLogo(size: 52),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'NOVA',
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.1,
-                  ),
+        Widget identityBlock() {
+          return Row(
+            children: [
+              NovaMetalLogo(size: logoSize),
+              SizedBox(width: narrow ? 10 : 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (ultra) ...[
+                      Text(
+                        'Sessão ativa',
+                        style: TextStyle(
+                          color: colors.primary,
+                          fontSize: 11.2,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                    ],
+                    Text(
+                      'NOVA',
+                      style: TextStyle(
+                        color: colors.textPrimary,
+                        fontSize: ultra ? 18.8 : (narrow ? 16.2 : 18),
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.1,
+                      ),
+                    ),
+                    SizedBox(height: narrow ? 3 : 4),
+                    Text(
+                      contextText,
+                      maxLines: narrow ? 2 : (wide ? 2 : 1),
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: ultra ? 13.0 : (narrow ? 12.1 : 12.8),
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  contextText,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: 12.8,
-                    height: 1.35,
-                  ),
+              ),
+            ],
+          );
+        }
+
+        return GlassContainer(
+          borderRadius: ultra ? 32 : 28,
+          blur: ultra ? 24 : 22,
+          opacity: context.isNovaDark ? 0.16 : 0.30,
+          padding: EdgeInsets.symmetric(
+            horizontal: horizontalPadding,
+            vertical: verticalPadding,
+          ),
+          child: narrow
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _TopCircleButton(
+                          icon: Icons.grid_view_rounded,
+                          onTap: onMenuTap,
+                          tooltip: 'Menu rápido',
+                          size: controlSize,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(child: identityBlock()),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: _StatusPill(
+                              state: status,
+                              compact: veryNarrow,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        _TopCircleButton(
+                          icon: Icons.person_outline_rounded,
+                          onTap: onUserTap,
+                          tooltip: userLabel,
+                          size: controlSize,
+                        ),
+                        const SizedBox(width: 8),
+                        _TopCircleButton(
+                          icon: Icons.camera_alt_outlined,
+                          onTap: onCameraTap,
+                          tooltip: 'Abrir câmera',
+                          size: controlSize,
+                        ),
+                      ],
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    _TopCircleButton(
+                      icon: Icons.grid_view_rounded,
+                      onTap: onMenuTap,
+                      tooltip: 'Menu rápido',
+                      size: controlSize,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: identityBlock()),
+                    const SizedBox(width: 12),
+                    _StatusPill(state: status),
+                    const SizedBox(width: 10),
+                    _TopCircleButton(
+                      icon: Icons.person_outline_rounded,
+                      onTap: onUserTap,
+                      tooltip: userLabel,
+                      size: controlSize,
+                    ),
+                    const SizedBox(width: 8),
+                    _TopCircleButton(
+                      icon: Icons.camera_alt_outlined,
+                      onTap: onCameraTap,
+                      tooltip: 'Abrir câmera',
+                      size: controlSize,
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          _StatusPill(state: status),
-          const SizedBox(width: 10),
-          _TopCircleButton(
-            icon: Icons.person_outline_rounded,
-            onTap: onUserTap,
-            tooltip: userLabel,
-          ),
-          const SizedBox(width: 8),
-          _TopCircleButton(
-            icon: Icons.camera_alt_outlined,
-            onTap: onCameraTap,
-            tooltip: 'Abrir câmera',
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -95,11 +182,13 @@ class _TopCircleButton extends StatelessWidget {
     required this.icon,
     required this.onTap,
     required this.tooltip,
+    this.size = 46,
   });
 
   final IconData icon;
   final VoidCallback onTap;
   final String tooltip;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -109,8 +198,8 @@ class _TopCircleButton extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          width: 46,
-          height: 46,
+          width: size,
+          height: size,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: Colors.white
@@ -120,6 +209,7 @@ class _TopCircleButton extends StatelessWidget {
           child: Icon(
             icon,
             color: colors.textPrimary,
+            size: size < 42 ? 19 : 22,
           ),
         ),
       ),
@@ -130,9 +220,11 @@ class _TopCircleButton extends StatelessWidget {
 class _StatusPill extends StatelessWidget {
   const _StatusPill({
     required this.state,
+    this.compact = false,
   });
 
   final NovaAssistantState state;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -146,7 +238,10 @@ class _StatusPill extends StatelessWidget {
     };
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 10 : 12,
+        vertical: compact ? 8 : 9,
+      ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(999),
@@ -156,7 +251,7 @@ class _StatusPill extends StatelessWidget {
         state.label,
         style: TextStyle(
           color: color,
-          fontSize: 12,
+          fontSize: compact ? 11.2 : 12,
           fontWeight: FontWeight.w700,
         ),
       ),

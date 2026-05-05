@@ -5726,20 +5726,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Widget _buildChatThread({
     required bool compact,
     required bool wideChat,
+    bool smallMobile = false,
+    bool ultrawide = false,
   }) {
     final visibleLines = _visibleChatLines();
     return GlassContainer(
-      borderRadius: 34,
+      borderRadius: smallMobile ? 30 : (ultrawide ? 36 : 34),
       padding: EdgeInsets.zero,
-      blur: 24,
+      blur: ultrawide ? 26 : 24,
       opacity: context.isNovaDark ? 0.14 : 0.26,
       child: ListView.builder(
         reverse: true,
         padding: EdgeInsets.fromLTRB(
-          compact ? 14 : 18,
-          compact ? 18 : 22,
-          compact ? 14 : 18,
-          compact ? 18 : 22,
+          ultrawide ? 22 : (smallMobile ? 12 : (compact ? 14 : 18)),
+          ultrawide ? 24 : (smallMobile ? 16 : (compact ? 18 : 22)),
+          ultrawide ? 22 : (smallMobile ? 12 : (compact ? 14 : 18)),
+          ultrawide ? 24 : (smallMobile ? 16 : (compact ? 18 : 22)),
         ),
         itemCount: visibleLines.length + (_sending ? 1 : 0),
         itemBuilder: (context, index) {
@@ -5786,60 +5788,189 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Widget _buildPinnedConversationCard({
     required bool compact,
     required bool compressed,
+    required bool microCompact,
+    required bool ultrawide,
   }) {
     final line = _pinnedConversationLine();
     final actions = _actionsForLine(line);
-    final showBriefing = !compressed;
+    final showBriefing = !compressed && !microCompact;
     final showActions = !compressed && actions.isNotEmpty;
-    final logoSize = compressed ? 40.0 : 46.0;
+    final logoSize =
+        compressed ? 40.0 : (ultrawide ? 54.0 : (microCompact ? 42.0 : 46.0));
+    final titleFontSize = compressed
+        ? 14.6
+        : (ultrawide ? 17.4 : (microCompact ? 14.2 : (compact ? 15.5 : 16.5)));
+    final briefingFontSize = ultrawide ? 14.8 : (compact ? 13.8 : 14.4);
+    final actionLimit = microCompact ? 3 : 4;
+
+    Widget statePill() {
+      return Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: compressed ? 10 : 12,
+          vertical: compressed ? 7 : 9,
+        ),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1D7F4E).withValues(alpha: 0.22),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: const Color(0xFF22C55E).withValues(alpha: 0.48),
+          ),
+        ),
+        child: Text(
+          _assistantState.label,
+          style: TextStyle(
+            color: const Color(0xFF22C55E),
+            fontSize: compressed ? 11.2 : 12,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      );
+    }
+
+    Widget actionChip(
+      NovaConversationAction action, {
+      bool expand = false,
+    }) {
+      final chip = GestureDetector(
+        onTap: () => _handleConversationAction(action),
+        child: Container(
+          width: expand ? double.infinity : null,
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 14 : 16,
+            vertical: microCompact ? 12 : (compact ? 11 : 12),
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(microCompact ? 20 : 18),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.16),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+            children: [
+              Icon(
+                action.icon ?? Icons.arrow_forward_rounded,
+                size: 16,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  action.label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (!expand) {
+        return chip;
+      }
+      return SizedBox(width: double.infinity, child: chip);
+    }
 
     return Container(
       width: double.infinity,
       padding: EdgeInsets.fromLTRB(
-        compressed ? 16 : (compact ? 18 : 22),
-        compressed ? 14 : (compact ? 18 : 20),
-        compressed ? 16 : (compact ? 18 : 22),
-        compressed ? 14 : (compact ? 16 : 18),
+        compressed
+            ? 16
+            : (ultrawide ? 26 : (microCompact ? 14 : (compact ? 18 : 22))),
+        compressed
+            ? 14
+            : (ultrawide ? 22 : (microCompact ? 12 : (compact ? 18 : 20))),
+        compressed
+            ? 16
+            : (ultrawide ? 26 : (microCompact ? 14 : (compact ? 18 : 22))),
+        compressed
+            ? 14
+            : (ultrawide ? 20 : (microCompact ? 12 : (compact ? 16 : 18))),
       ),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: context.isNovaDark
-              ? const [
-                  Color(0xFF2D3A4D),
-                  Color(0xFF34465F),
-                ]
-              : const [
-                  Color(0xFF32435D),
-                  Color(0xFF41546F),
-                ],
+              ? (ultrawide
+                  ? const [
+                      Color(0xFF243244),
+                      Color(0xFF314766),
+                    ]
+                  : (microCompact
+                      ? const [
+                          Color(0xFF34465E),
+                          Color(0xFF3A577A),
+                        ]
+                      : const [
+                          Color(0xFF2D3A4D),
+                          Color(0xFF34465F),
+                        ]))
+              : (ultrawide
+                  ? const [
+                      Color(0xFF2C3F58),
+                      Color(0xFF47607D),
+                    ]
+                  : (microCompact
+                      ? const [
+                          Color(0xFF37506D),
+                          Color(0xFF557595),
+                        ]
+                      : const [
+                          Color(0xFF32435D),
+                          Color(0xFF41546F),
+                        ])),
         ),
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(microCompact ? 28 : 30),
         border: Border.all(
           color: Colors.white.withValues(alpha: 0.14),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.16),
-            blurRadius: 26,
-            offset: const Offset(0, 12),
+            color: Colors.black.withValues(alpha: ultrawide ? 0.18 : 0.16),
+            blurRadius: ultrawide ? 32 : 26,
+            offset: Offset(0, ultrawide ? 14 : 12),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.16),
+              ),
+            ),
+            child: Text(
+              microCompact
+                  ? 'Agora'
+                  : (ultrawide ? 'Painel principal' : 'Resumo da sessão'),
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.82),
+                fontSize: 11.2,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          SizedBox(height: microCompact ? 10 : 14),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               NovaMetalLogo(size: logoSize),
-              SizedBox(width: compressed ? 10 : 12),
+              SizedBox(width: compressed ? 10 : (microCompact ? 10 : 12)),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SizedBox(height: compressed ? 0 : 2),
+                    SizedBox(height: compressed ? 0 : (microCompact ? 1 : 2)),
                     const Text(
                       'NOVA',
                       style: TextStyle(
@@ -5853,40 +5984,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       line.summary?.trim().isNotEmpty == true
                           ? line.summary!.trim()
                           : _contextualGreetingHeadline(),
-                      maxLines: compressed ? 2 : 3,
+                      maxLines: compressed ? 2 : (microCompact ? 2 : 3),
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: compressed ? 14.6 : (compact ? 15.5 : 16.5),
+                        fontSize: titleFontSize,
                         fontWeight: FontWeight.w800,
                         height: 1.2,
                       ),
                     ),
+                    if (microCompact) ...[
+                      const SizedBox(height: 10),
+                      statePill(),
+                    ],
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
-              Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: compressed ? 10 : 12,
-                  vertical: compressed ? 7 : 9,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1D7F4E).withValues(alpha: 0.22),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: const Color(0xFF22C55E).withValues(alpha: 0.48),
-                  ),
-                ),
-                child: Text(
-                  _assistantState.label,
-                  style: TextStyle(
-                    color: const Color(0xFF22C55E),
-                    fontSize: compressed ? 11.2 : 12,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
+              if (!microCompact) ...[
+                const SizedBox(width: 12),
+                statePill(),
+              ],
             ],
           ),
           if (showBriefing) ...[
@@ -5897,7 +6014,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   : _contextualGreetingBriefing(),
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.84),
-                fontSize: compact ? 13.8 : 14.4,
+                fontSize: briefingFontSize,
                 height: 1.45,
                 fontWeight: FontWeight.w500,
               ),
@@ -5913,53 +6030,30 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 fontWeight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: actions
-                  .take(4)
-                  .map(
-                    (action) => GestureDetector(
-                      onTap: () => _handleConversationAction(action),
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: compact ? 14 : 16,
-                          vertical: compact ? 11 : 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.10),
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.16),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              action.icon ?? Icons.arrow_forward_rounded,
-                              size: 16,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              action.label,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
+            SizedBox(height: microCompact ? 8 : 10),
+            if (microCompact)
+              Column(
+                children: actions
+                    .take(actionLimit)
+                    .map(
+                      (action) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: actionChip(action, expand: true),
                       ),
-                    ),
-                  )
-                  .toList(),
-            ),
+                    )
+                    .toList(),
+              )
+            else
+              Wrap(
+                spacing: ultrawide ? 12 : 10,
+                runSpacing: 10,
+                children: actions
+                    .take(actionLimit)
+                    .map((action) => actionChip(action))
+                    .toList(),
+              ),
           ],
-          if (!compressed) ...[
+          if (!compressed && !microCompact) ...[
             const SizedBox(height: 12),
             Text(
               '${line.timestamp.hour.toString().padLeft(2, '0')}:${line.timestamp.minute.toString().padLeft(2, '0')}',
@@ -5974,100 +6068,221 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildSidebarColumn() {
+  Widget _buildMemoryPanel({
+    bool compact = false,
+    bool spotlight = false,
+  }) {
     final memoryItems = _memoryRailItems();
     final documentItems = _documentHighlights();
     final colors = context.novaColors;
 
+    return GlassContainer(
+      borderRadius: 30,
+      blur: 20,
+      opacity: context.isNovaDark ? 0.16 : 0.26,
+      borderColor: spotlight
+          ? colors.primary.withValues(alpha: context.isNovaDark ? 0.34 : 0.22)
+          : null,
+      padding: EdgeInsets.all(compact ? 16 : 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (spotlight) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: colors.primarySoft.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                'Retomada rápida',
+                style: TextStyle(
+                  color: colors.primary,
+                  fontSize: 11.2,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          Text(
+            'Memória ativa',
+            style: TextStyle(
+              color: colors.textPrimary,
+              fontSize: compact ? 16 : 17,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            _systemStatus,
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: compact ? 12.0 : 12.5,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (memoryItems.isEmpty)
+            Text(
+              'As últimas memórias e documentos processados aparecem aqui para acelerar a retomada.',
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: compact ? 12.6 : 13.2,
+                height: 1.5,
+              ),
+            )
+          else
+            ...memoryItems.take(3).map(
+                  (item) => Padding(
+                    padding: EdgeInsets.only(bottom: compact ? 8 : 10),
+                    child: Text(
+                      '• $item',
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: compact ? 12.4 : 13,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ),
+          if (documentItems.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Documentos',
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: compact ? 13.8 : 14.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...documentItems.take(3).map(
+                  (item) => Padding(
+                    padding: EdgeInsets.only(bottom: compact ? 6 : 8),
+                    child: Text(
+                      '• $item',
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: compact ? 12.2 : 12.8,
+                        height: 1.45,
+                      ),
+                    ),
+                  ),
+                ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSidebarColumn({
+    bool compact = false,
+    bool spotlight = false,
+  }) {
     return Column(
       children: [
         NovaSidebarBio(
           statusLabel: _assistantState.label,
           contextText: _conversationContextLabel(),
           onOpenMemory: _openBrainDialog,
+          compact: compact,
+          spotlight: spotlight,
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: compact ? 12 : 14),
         NovaModulesPanel(
           modules: _contextModules(),
           onModuleTap: _handleModuleTap,
+          compact: compact,
+          spotlight: spotlight,
+        ),
+        SizedBox(height: compact ? 12 : 14),
+        _buildMemoryPanel(
+          compact: compact,
+          spotlight: spotlight,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTabletSidebarBand({
+    required double width,
+    required bool portrait,
+  }) {
+    final useTwoColumns = width >= 860;
+    if (portrait) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 5,
+            child: NovaSidebarBio(
+              statusLabel: _assistantState.label,
+              contextText: _conversationContextLabel(),
+              onOpenMemory: _openBrainDialog,
+              compact: width < 920,
+              spotlight: true,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            flex: 6,
+            child: Column(
+              children: [
+                NovaModulesPanel(
+                  modules: _contextModules(),
+                  onModuleTap: _handleModuleTap,
+                  compact: true,
+                  spotlight: true,
+                ),
+                const SizedBox(height: 12),
+                _buildMemoryPanel(
+                  compact: true,
+                  spotlight: true,
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (!useTwoColumns) {
+      return _buildSidebarColumn(
+        compact: true,
+        spotlight: true,
+      );
+    }
+
+    return Column(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: NovaSidebarBio(
+                statusLabel: _assistantState.label,
+                contextText: _conversationContextLabel(),
+                onOpenMemory: _openBrainDialog,
+                compact: true,
+                spotlight: true,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: NovaModulesPanel(
+                modules: _contextModules(),
+                onModuleTap: _handleModuleTap,
+                compact: true,
+                spotlight: true,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 14),
-        GlassContainer(
-          borderRadius: 30,
-          blur: 20,
-          opacity: context.isNovaDark ? 0.16 : 0.26,
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Memória ativa',
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                _systemStatus,
-                style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: 12.5,
-                  height: 1.45,
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (memoryItems.isEmpty)
-                Text(
-                  'As últimas memórias e documentos processados aparecem aqui para acelerar a retomada.',
-                  style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: 13.2,
-                    height: 1.5,
-                  ),
-                )
-              else
-                ...memoryItems.take(3).map(
-                      (item) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Text(
-                          '• $item',
-                          style: TextStyle(
-                            color: colors.textSecondary,
-                            fontSize: 13,
-                            height: 1.5,
-                          ),
-                        ),
-                      ),
-                    ),
-              if (documentItems.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(
-                  'Documentos',
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ...documentItems.take(3).map(
-                      (item) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Text(
-                          '• $item',
-                          style: TextStyle(
-                            color: colors.textSecondary,
-                            fontSize: 12.8,
-                            height: 1.45,
-                          ),
-                        ),
-                      ),
-                    ),
-              ],
-            ],
-          ),
+        _buildMemoryPanel(
+          compact: true,
+          spotlight: true,
         ),
       ],
     );
@@ -6076,10 +6291,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Widget _buildMainColumn({
     required bool compact,
     required bool compressed,
+    required bool microCompact,
+    required bool ultrawide,
     bool wideChat = false,
   }) {
-    final topGap = compressed ? 10.0 : 14.0;
-    final composerGap = compressed ? 10.0 : 14.0;
+    final topGap =
+        compressed ? 10.0 : (ultrawide ? 16.0 : (microCompact ? 8.0 : 14.0));
+    final composerGap = compressed ? 10.0 : (microCompact ? 8.0 : 14.0);
     return Column(
       children: [
         NovaTopBar(
@@ -6091,14 +6309,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ),
         SizedBox(height: topGap),
         _buildPinnedConversationCard(
-          compact: compact,
+          compact: compact || microCompact,
           compressed: compressed,
+          microCompact: microCompact,
+          ultrawide: ultrawide,
         ),
         SizedBox(height: topGap),
         Expanded(
           child: _buildChatThread(
-            compact: compact,
+            compact: compact || microCompact,
             wideChat: wideChat,
+            smallMobile: microCompact,
+            ultrawide: ultrawide,
           ),
         ),
         SizedBox(height: composerGap),
@@ -6112,7 +6334,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 },
           isListening: _isListening,
           sending: _sending || _preparingAttachment,
-          compact: compact || compressed,
+          compact: compact || compressed || microCompact,
           onAdd: _pickComposerAttachment,
           onMic: _speechReady ? _toggleListening : _initSpeech,
           onSend: _handleSendMessage,
@@ -6125,13 +6347,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final colors = context.novaColors;
     final screenWidth = MediaQuery.sizeOf(context).width;
-    final shellMaxWidth = screenWidth >= 1500
-        ? 860.0
-        : (screenWidth >= 1200
-            ? 760.0
-            : (screenWidth >= 900
-                ? 680.0
-                : (screenWidth >= 600 ? 560.0 : screenWidth)));
+    final shellMaxWidth = screenWidth >= 1700
+        ? 980.0
+        : (screenWidth >= 1500
+            ? 920.0
+            : (screenWidth >= 1200
+                ? 760.0
+                : (screenWidth >= 900
+                    ? 680.0
+                    : (screenWidth >= 600 ? 560.0 : screenWidth))));
     return Scaffold(
       backgroundColor: colors.background,
       body: Stack(
@@ -6140,19 +6364,35 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           SafeArea(
             child: LayoutBuilder(
               builder: (context, viewport) {
-                final useWideLayout = viewport.maxWidth >= 980;
+                final isUltrawide =
+                    viewport.maxWidth >= 1680 && viewport.maxHeight >= 780;
+                final useWideLayout =
+                    viewport.maxWidth >= 1180 && viewport.maxHeight >= 720;
+                final useStackedSidebarLayout = !useWideLayout &&
+                    viewport.maxWidth >= 760 &&
+                    viewport.maxHeight >= 760;
+                final isTabletPortrait = useStackedSidebarLayout &&
+                    viewport.maxHeight > viewport.maxWidth;
                 final compressed = viewport.maxHeight < 650;
                 final chatShell = ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: shellMaxWidth),
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       final compact = constraints.maxWidth < 560;
+                      final microCompact = constraints.maxWidth < 400;
                       final wideChat = constraints.maxWidth >= 680;
                       return Padding(
-                        padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                        padding: EdgeInsets.fromLTRB(
+                          microCompact ? 6 : 10,
+                          microCompact ? 6 : 8,
+                          microCompact ? 6 : 10,
+                          microCompact ? 8 : 10,
+                        ),
                         child: _buildMainColumn(
                           compact: compact,
                           compressed: compressed,
+                          microCompact: microCompact,
+                          ultrawide: isUltrawide,
                           wideChat: wideChat,
                         ),
                       );
@@ -6160,26 +6400,64 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   ),
                 );
 
+                if (useStackedSidebarLayout) {
+                  final sidebarHeight = isTabletPortrait
+                      ? (viewport.maxHeight >= 900 ? 340.0 : 300.0)
+                      : (viewport.maxHeight >= 900 ? 320.0 : 260.0);
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: Center(child: chatShell),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          height: sidebarHeight,
+                          width: double.infinity,
+                          child: SingleChildScrollView(
+                            child: _buildTabletSidebarBand(
+                              width: viewport.maxWidth - 28,
+                              portrait: isTabletPortrait,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
                 if (!useWideLayout) {
                   return Center(child: chatShell);
                 }
 
-                final sidebarWidth = viewport.maxWidth >= 1480 ? 338.0 : 304.0;
+                final sidebarWidth = viewport.maxWidth >= 1680
+                    ? 388.0
+                    : (viewport.maxWidth >= 1480 ? 348.0 : 304.0);
                 return Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
+                  padding: EdgeInsets.fromLTRB(
+                    viewport.maxWidth >= 1680 ? 26 : 18,
+                    12,
+                    viewport.maxWidth >= 1680 ? 26 : 18,
+                    16,
+                  ),
                   child: Row(
                     children: [
                       Expanded(
                         child: Align(
-                          alignment: Alignment.center,
+                          alignment: isUltrawide
+                              ? Alignment.centerRight
+                              : Alignment.center,
                           child: chatShell,
                         ),
                       ),
-                      const SizedBox(width: 18),
+                      SizedBox(width: isUltrawide ? 24 : 18),
                       SizedBox(
                         width: sidebarWidth,
                         child: SingleChildScrollView(
-                          child: _buildSidebarColumn(),
+                          child: _buildSidebarColumn(
+                            spotlight: isUltrawide,
+                          ),
                         ),
                       ),
                     ],

@@ -61,11 +61,15 @@ class NovaSidebarBio extends StatelessWidget {
     required this.statusLabel,
     required this.contextText,
     this.onOpenMemory,
+    this.compact = false,
+    this.spotlight = false,
   });
 
   final String statusLabel;
   final String contextText;
   final VoidCallback? onOpenMemory;
+  final bool compact;
+  final bool spotlight;
 
   @override
   Widget build(BuildContext context) {
@@ -75,31 +79,54 @@ class NovaSidebarBio extends StatelessWidget {
       borderRadius: 30,
       blur: 22,
       opacity: context.isNovaDark ? 0.16 : 0.28,
-      padding: const EdgeInsets.all(22),
+      borderColor: spotlight
+          ? colors.primary.withValues(alpha: context.isNovaDark ? 0.40 : 0.22)
+          : null,
+      padding: EdgeInsets.all(compact ? 18 : 22),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const NovaMetalLogo(size: 92),
-          const SizedBox(height: 18),
+          if (spotlight) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: colors.primarySoft.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                'Núcleo NOVA',
+                style: TextStyle(
+                  color: colors.primary,
+                  fontSize: 11.2,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            SizedBox(height: compact ? 12 : 14),
+          ],
+          NovaMetalLogo(
+            size: compact ? 76 : (spotlight ? 98 : 92),
+          ),
+          SizedBox(height: compact ? 14 : 18),
           Text(
             'NOVA',
             style: TextStyle(
               color: colors.textPrimary,
-              fontSize: 28,
+              fontSize: compact ? 24 : 28,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.6,
             ),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: compact ? 8 : 10),
           Text(
             'Assistente inteligente para organizar ideias, gerar códigos, analisar documentos e transformar seus projetos em produtos reais.',
             style: TextStyle(
               color: colors.textSecondary,
-              fontSize: 13.8,
+              fontSize: compact ? 13.0 : 13.8,
               height: 1.55,
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: compact ? 14 : 16),
           Wrap(
             spacing: 10,
             runSpacing: 10,
@@ -107,30 +134,58 @@ class NovaSidebarBio extends StatelessWidget {
               _SidebarPill(
                 label: statusLabel,
                 active: true,
+                compact: compact,
               ),
-              const _SidebarPill(
+              _SidebarPill(
                 label: 'Memória pronta',
                 active: false,
+                compact: compact,
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Text(
-            contextText,
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: 12.8,
-              height: 1.45,
+          SizedBox(height: compact ? 12 : 14),
+          if (spotlight)
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(
+                horizontal: compact ? 12 : 14,
+                vertical: compact ? 10 : 12,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(
+                  alpha: context.isNovaDark ? 0.06 : 0.36,
+                ),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: colors.glassBorder),
+              ),
+              child: Text(
+                contextText,
+                style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: compact ? 12.2 : 12.8,
+                  height: 1.45,
+                ),
+              ),
+            )
+          else
+            Text(
+              contextText,
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: compact ? 12.2 : 12.8,
+                height: 1.45,
+              ),
             ),
-          ),
           if (onOpenMemory != null) ...[
-            const SizedBox(height: 18),
+            SizedBox(height: compact ? 14 : 18),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: onOpenMemory,
                 icon: const Icon(Icons.auto_awesome_motion_rounded),
-                label: const Text('Abrir memória e notas'),
+                label: Text(
+                  compact ? 'Abrir memória' : 'Abrir memória e notas',
+                ),
               ),
             ),
           ],
@@ -144,16 +199,21 @@ class _SidebarPill extends StatelessWidget {
   const _SidebarPill({
     required this.label,
     required this.active,
+    this.compact = false,
   });
 
   final String label;
   final bool active;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.novaColors;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 10 : 12,
+        vertical: compact ? 7 : 8,
+      ),
       decoration: BoxDecoration(
         color: active
             ? colors.primarySoft.withValues(alpha: 0.34)
@@ -167,7 +227,7 @@ class _SidebarPill extends StatelessWidget {
         label,
         style: TextStyle(
           color: active ? colors.primary : colors.textSecondary,
-          fontSize: 12.2,
+          fontSize: compact ? 11.6 : 12.2,
           fontWeight: FontWeight.w700,
         ),
       ),
