@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,16 +14,19 @@ from fastapi.testclient import TestClient
 
 from api.app import create_app
 from core import runtime_guard
+from routes import chat_routes
 
 
 class ApiSmokeTests(unittest.TestCase):
     def setUp(self) -> None:
         runtime_guard._BUCKETS.clear()
+        chat_routes._PENDING_STRUCTURED_CHAT.clear()
         self.client = TestClient(create_app())
 
     def tearDown(self) -> None:
         self.client.close()
         runtime_guard._BUCKETS.clear()
+        chat_routes._PENDING_STRUCTURED_CHAT.clear()
 
     def test_health_endpoint_returns_core_metadata(self) -> None:
         response = self.client.get("/health")
@@ -65,6 +69,55 @@ class ApiSmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["access-control-allow-origin"], "http://localhost:3000")
         self.assertIn("GET", response.headers["access-control-allow-methods"])
+
+    def test_chat_dev_mode_gera_codigo_e_ignora_confirmacao_pendente(self) -> None:
+        chat_routes._PENDING_STRUCTURED_CHAT["default"] = {
+            "tool_name": "schedule_calendar_event",
+            "params": {"request_text": "agende reuniao amanha as 15:00"},
+            "prompt_text": "agende reuniao",
+            "mode": "normal",
+        }
+        generated = {
+            "answer": "Entendi sua ideia: crie uma tela de login. Linguagem escolhida: Flutter.",
+            "summary": "Projeto Flutter gerado.",
+            "language": "flutter",
+            "language_label": "Flutter",
+            "project_name": "login_nova",
+            "project_dir": "projetos_gerados/login_nova",
+            "project_ref": "projetos_gerados/login_nova",
+            "files": ["lib/main.dart"],
+            "run_instructions": ["flutter pub get", "flutter run"],
+            "improvements": ["Adicionar validacao"],
+            "code_bundle": "// arquivo: lib/main.dart\nvoid main() {}",
+            "copy_label": "Copiar codigo",
+        }
+
+        with patch(
+            "routes.chat_routes.gerar_codigo_por_ideia",
+            return_value=generated,
+        ) as mocked_generate:
+            response = self.client.post(
+                "/chat",
+                json={
+                    "text": "Gerar codigo: crie uma tela de login\nLinguagem: flutter\nProjeto: login_nova",
+                    "mode": "dev",
+                    "context": "Priorizar geracao em flutter. Usar login_nova como nome do projeto.",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["type"], "dev")
+        self.assertEqual(payload["language"], "flutter")
+        self.assertEqual(payload["project_name"], "login_nova")
+        self.assertIn("code_bundle", payload)
+        self.assertNotIn("default", chat_routes._PENDING_STRUCTURED_CHAT)
+        mocked_generate.assert_called_once_with(
+            "crie uma tela de login",
+            language="flutter",
+            project_name="login_nova",
+        )
 
 
 if __name__ == "__main__":

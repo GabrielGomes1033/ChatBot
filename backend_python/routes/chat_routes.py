@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any, Callable
 
+from core.dev_assistente import gerar_codigo_por_ideia
 from core.jarvis_chat_bridge import process_pending_tool_confirmation
 from core.orchestrator import get_default_orchestrator
 
@@ -46,6 +47,96 @@ def _dedupe_items(items: list[str], *, limit: int = 3) -> list[str]:
 def _contains_any(text: str, options: tuple[str, ...]) -> bool:
     lowered = _clean_text(text).casefold()
     return any(option in lowered for option in options)
+
+
+def _extract_dev_chat_request(text: str, extra_context: str = "") -> dict[str, str]:
+    lines = [
+        _clean_text(line)
+        for line in str(text or "").splitlines()
+        if _clean_text(line)
+    ]
+    prompt_parts: list[str] = []
+    language = ""
+    project_name = ""
+
+    for line in lines:
+        lowered = line.casefold()
+        if lowered.startswith("gerar codigo:"):
+            prompt_parts.append(line.split(":", 1)[1].strip())
+            continue
+        if lowered.startswith("linguagem:"):
+            language = line.split(":", 1)[1].strip()
+            continue
+        if lowered.startswith("projeto:"):
+            project_name = line.split(":", 1)[1].strip()
+            continue
+        if lowered.startswith("contexto adicional:"):
+            continue
+        if lowered.startswith("priorizar geracao em "):
+            continue
+        if re.match(r"^usar\s+.+\s+como nome do projeto\.?$", lowered):
+            continue
+        prompt_parts.append(line)
+
+    normalized_extra = _clean_text(extra_context)
+    if not language:
+        language_match = re.search(
+            r"priorizar geracao em\s+([a-z0-9_+#.-]+)",
+            normalized_extra,
+            flags=re.IGNORECASE,
+        )
+        if language_match:
+            language = language_match.group(1).strip()
+    if not project_name:
+        project_match = re.search(
+            r"usar\s+([a-z0-9_./-]+)\s+como nome do projeto",
+            normalized_extra,
+            flags=re.IGNORECASE,
+        )
+        if project_match:
+            project_name = project_match.group(1).strip()
+
+    prompt = " ".join(prompt_parts).strip()
+    if not prompt:
+        prompt = _clean_text(text)
+    prompt = re.sub(r"^gerar codigo:\s*", "", prompt, flags=re.IGNORECASE).strip()
+
+    return {
+        "prompt": prompt,
+        "language": language.strip(),
+        "project_name": project_name.strip(),
+    }
+
+
+def _build_dev_payload(generated: dict[str, Any]) -> dict[str, Any]:
+    answer = _clean_text(generated.get("answer"))
+    summary = _clean_text(generated.get("summary")) or answer
+    return {
+        "ok": True,
+        "status": "ok",
+        "type": "dev",
+        "answer": answer,
+        "reply": answer,
+        "resumo": summary,
+        "explicacao": answer,
+        "assistant_state": "suggesting",
+        "language": generated.get("language"),
+        "language_label": generated.get("language_label"),
+        "project_name": generated.get("project_name"),
+        "project_dir": generated.get("project_dir"),
+        "project_ref": generated.get("project_ref"),
+        "files": generated.get("files", []),
+        "run_instructions": generated.get("run_instructions", []),
+        "improvements": generated.get("improvements", []),
+        "code_bundle": generated.get("code_bundle", ""),
+        "copy_label": generated.get("copy_label", "Copiar codigo"),
+        "pending_confirmation": False,
+        "next_actions": [
+            "Continuar projeto",
+            "Explicar codigo",
+            "Melhorar interface",
+        ],
+    }
 
 
 def _infer_assistant_state(result: dict[str, Any], reply: str) -> str:
@@ -230,12 +321,44 @@ def handle_chat_post(
         mode = str(body.get("mode", "normal")).strip() or "normal"
         text = str(body.get("text", body.get("message", ""))).strip()
         extra_context = str(body.get("context", "")).strip()
+        raw_text = text
         if extra_context:
             text = (
                 f"{text}\n\nContexto adicional:\n{extra_context}".strip()
                 if text
                 else extra_context
             )
+        if mode == "dev":
+            _PENDING_STRUCTURED_CHAT.pop(user_id, None)
+            request = _extract_dev_chat_request(raw_text or text, extra_context)
+            try:
+                generated = gerar_codigo_por_ideia(
+                    request["prompt"],
+                    language=request["language"],
+                    project_name=request["project_name"],
+                )
+            except ValueError:
+                send_json(
+                    {
+                        "ok": False,
+                        "error": "prompt_not_supported",
+                        "reply": "Nao consegui interpretar esse pedido de geracao de codigo.",
+                        "resumo": "Pedido de codigo nao reconhecido.",
+                        "explicacao": (
+                            "Nao consegui interpretar esse pedido de geracao de codigo."
+                        ),
+                        "assistant_state": "responding",
+                        "next_actions": [
+                            "Continuar projeto",
+                            "Gerar codigo",
+                            "Melhorar interface",
+                        ],
+                    },
+                    400,
+                )
+                return True
+            send_json(_build_dev_payload(generated))
+            return True
         if user_id in _PENDING_STRUCTURED_CHAT:
             ctx = {
                 "nome_usuario": user_id,
