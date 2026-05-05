@@ -5612,6 +5612,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         userId: _jarvisUserId(),
         context: context,
       );
+    } else if (normalized.contains('organizar proximo passo')) {
+      await _executeCommand(
+        'Nova, organize o próximo passo com checklist objetivo, prioridade e ordem de execução.',
+        fromVoice: false,
+      );
+      return;
     } else if (normalized.contains('continuar daqui')) {
       request = _api.continueFromHereAction(
         userId: _jarvisUserId(),
@@ -5624,7 +5630,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
 
     if (request == null) {
-      await _executeCommand(action.prompt, fromVoice: false);
+      final prompt = action.prompt.trim().isNotEmpty ? action.prompt.trim() : label;
+      await _executeCommand(prompt, fromVoice: false);
       return;
     }
 
