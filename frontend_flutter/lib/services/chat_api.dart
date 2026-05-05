@@ -181,6 +181,7 @@ class ChatApiService {
         (path.startsWith('/autonomy') ||
             path.startsWith('/jarvis') ||
             path.startsWith('/actions') ||
+            path.startsWith('/dev') ||
             path.startsWith('/documents') ||
             path.startsWith('/images') ||
             path.startsWith('/agent') ||
@@ -1252,22 +1253,86 @@ class ChatApiService {
     );
   }
 
+  String _buildDevFallbackPrompt({
+    required String prompt,
+    String language = '',
+    String projectName = '',
+  }) {
+    final trimmedPrompt = prompt.trim();
+    final trimmedLanguage = language.trim();
+    final trimmedProjectName = projectName.trim();
+    final buffer = StringBuffer('Gerar codigo: $trimmedPrompt');
+    if (trimmedLanguage.isNotEmpty) {
+      buffer.write('\nLinguagem: $trimmedLanguage');
+    }
+    if (trimmedProjectName.isNotEmpty) {
+      buffer.write('\nProjeto: $trimmedProjectName');
+    }
+    return buffer.toString();
+  }
+
+  String _buildDevFallbackContext({
+    String language = '',
+    String projectName = '',
+  }) {
+    final parts = <String>[];
+    final trimmedLanguage = language.trim();
+    final trimmedProjectName = projectName.trim();
+    if (trimmedLanguage.isNotEmpty) {
+      parts.add('Priorizar geracao em $trimmedLanguage.');
+    }
+    if (trimmedProjectName.isNotEmpty) {
+      parts.add('Usar $trimmedProjectName como nome do projeto.');
+    }
+    return parts.join(' ');
+  }
+
   Future<Map<String, dynamic>> generateDevCode({
     required String prompt,
     String language = '',
     String projectName = '',
     bool autoConfirm = false,
-  }) {
-    return _requestJson(
-      'POST',
-      '/dev/generate',
-      body: {
-        'prompt': prompt,
-        'language': language,
-        'project_name': projectName,
-        'auto_confirm': autoConfirm,
-      },
-    );
+  }) async {
+    final body = {
+      'prompt': prompt,
+      'language': language,
+      'project_name': projectName,
+      'auto_confirm': autoConfirm,
+    };
+
+    try {
+      return await _requestJson(
+        'POST',
+        '/dev/generate',
+        body: body,
+      );
+    } on ApiHttpException catch (error) {
+      if (error.statusCode != 404) rethrow;
+
+      final fallbackPayload = await sendJarvisMessage(
+        _buildDevFallbackPrompt(
+          prompt: prompt,
+          language: language,
+          projectName: projectName,
+        ),
+        mode: 'dev',
+        context: _buildDevFallbackContext(
+          language: language,
+          projectName: projectName,
+        ),
+      );
+
+      return {
+        ...fallbackPayload,
+        'ok': true,
+        'type': fallbackPayload['type'] ?? 'dev',
+        'assistant_state': fallbackPayload['assistant_state'] ?? 'suggesting',
+        'project_name': fallbackPayload['project_name'] ?? projectName,
+        'language': fallbackPayload['language'] ?? language,
+        'language_label': fallbackPayload['language_label'] ?? language,
+        'copy_label': fallbackPayload['copy_label'] ?? 'Copiar codigo',
+      };
+    }
   }
 
   Map<String, dynamic> _buildLocalDocumentFallback({

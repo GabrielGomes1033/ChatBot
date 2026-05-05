@@ -208,6 +208,73 @@ void main() {
     expect(body['context'], 'interface do projeto NOVA');
   });
 
+  test(
+      'generateDevCode faz fallback para /chat quando /dev/generate nao existe',
+      () async {
+    final calls = <String>[];
+    late Map<String, dynamic> chatBody;
+
+    final service = ChatApiService(
+      baseUrl: 'http://127.0.0.1:8000',
+      httpExecutor: (
+        String method,
+        Uri uri, {
+        required Map<String, String> headers,
+        String? encodedBody,
+      }) async {
+        calls.add(uri.toString());
+        expect(method, 'POST');
+        if (uri.path == '/dev/generate' || uri.path == '/api/dev/generate') {
+          return http.Response(jsonEncode({'detail': 'Not Found'}), 404);
+        }
+        if (uri.path == '/chat') {
+          chatBody = jsonDecode(encodedBody!) as Map<String, dynamic>;
+          return http.Response(
+            jsonEncode({
+              'ok': true,
+              'reply':
+                  'Montei o plano inicial do projeto e posso gerar os arquivos a seguir.',
+              'resumo': 'Plano inicial do projeto pronto.',
+              'assistant_state': 'suggesting',
+              'next_actions': ['Criar projeto', 'Explicar codigo'],
+            }),
+            200,
+          );
+        }
+        fail('Chamada inesperada: ${uri.toString()}');
+      },
+    );
+
+    final payload = await service.generateDevCode(
+      prompt: 'Crie uma landing page para a NOVA',
+      language: 'flutter',
+      projectName: 'nova_landing',
+      autoConfirm: true,
+    );
+
+    expect(payload['ok'], isTrue);
+    expect(payload['type'], 'dev');
+    expect(payload['project_name'], 'nova_landing');
+    expect(payload['language'], 'flutter');
+    expect(payload['assistant_state'], 'suggesting');
+    expect(chatBody['mode'], 'dev');
+    expect(
+      chatBody['text'],
+      contains('Gerar codigo: Crie uma landing page para a NOVA'),
+    );
+    expect(chatBody['text'], contains('Linguagem: flutter'));
+    expect(chatBody['text'], contains('Projeto: nova_landing'));
+    expect(chatBody['context'], contains('Priorizar geracao em flutter.'));
+    expect(
+      calls,
+      containsAll([
+        'http://127.0.0.1:8000/dev/generate',
+        'http://127.0.0.1:8000/api/dev/generate',
+        'http://127.0.0.1:8000/chat',
+      ]),
+    );
+  });
+
   test('uploadFile e analyzeUploadedFile usam o contrato novo de arquivos',
       () async {
     final calls = <String>[];

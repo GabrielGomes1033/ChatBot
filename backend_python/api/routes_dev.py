@@ -23,7 +23,13 @@ if APIRouter is not None:
         tags=["dev"],
         dependencies=[Depends(rate_limit(120)), Depends(require_token())],
     )
+    compat_router = APIRouter(
+        prefix="/api/dev",
+        tags=["dev"],
+        dependencies=[Depends(rate_limit(120)), Depends(require_token())],
+    )
 
+    @compat_router.post("/generate")
     @router.post("/generate")
     def generate_code(body: dict):
         prompt = str(body.get("prompt", "")).strip()
@@ -85,3 +91,4 @@ if APIRouter is not None:
 
 else:
     router = None
+    compat_router = None

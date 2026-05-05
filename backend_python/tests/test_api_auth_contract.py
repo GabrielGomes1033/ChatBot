@@ -116,6 +116,7 @@ class ApiAuthContractTests(unittest.TestCase):
             ("GET", "/reminders"),
             ("GET", "/location/current"),
             ("POST", "/voice/neural"),
+            ("POST", "/api/dev/generate"),
         ]
 
         with self._build_client("contrato-token"), TestClient(create_app()) as client:
@@ -142,6 +143,45 @@ class ApiAuthContractTests(unittest.TestCase):
             brain = client.get("/brain/graph", headers=headers)
             self.assertEqual(brain.status_code, 200)
             self.assertTrue(brain.json()["ok"])
+
+    def test_compat_dev_route_accepts_valid_token(self) -> None:
+        headers = {"X-API-Key": "contrato-token"}
+        payload = {
+            "prompt": "Crie uma API FastAPI para tarefas",
+            "language": "python",
+            "project_name": "tarefas_api",
+        }
+
+        generated = {
+            "answer": "Projeto criado.",
+            "summary": "Projeto pronto.",
+            "language": "python",
+            "language_label": "Python",
+            "project_name": "tarefas_api",
+            "project_dir": "projetos_gerados/tarefas_api",
+            "project_ref": "projetos_gerados/tarefas_api",
+            "files": [],
+            "run_instructions": [],
+            "improvements": [],
+            "code_bundle": "print('ok')",
+            "copy_label": "Copiar codigo",
+        }
+
+        with self._build_client("contrato-token"), patch(
+            "api.routes_dev.gerar_codigo_por_ideia",
+            return_value=generated,
+        ), TestClient(create_app()) as client:
+            response = client.post(
+                "/api/dev/generate",
+                json=payload,
+                headers=headers,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["type"], "dev")
+        self.assertEqual(body["project_name"], "tarefas_api")
 
     def test_cors_can_be_restricted_by_env(self) -> None:
         env = {
