@@ -61,34 +61,30 @@ class ApiEndpointConfig {
 
       if (host == 'api.andradeegomes.com') {
         push('https://api.andradeegomes.com', 'web_producao');
-        return out;
       }
 
       if (host == 'andradeegomes.com' || host.endsWith('.andradeegomes.com')) {
         push('https://api.andradeegomes.com', 'web_subdominio');
-        return out;
-      }
-
-      if (isLocal && host.isNotEmpty) {
-        push(localBaseUrl(host, scheme: scheme), 'web_mesmo_host');
-        push(Uri.base.origin, 'web_mesma_origem');
-        return out;
       }
 
       if (host.isNotEmpty) {
+        push(localBaseUrl(host, scheme: scheme), 'web_mesmo_host_api_porta');
+        push(Uri.base.origin, 'web_mesma_origem');
         push('$scheme://$host', 'web_host_atual');
-        return out;
+      }
+
+      if (isLocal) {
+        push(localBaseUrl('127.0.0.1', scheme: scheme), 'web_loopback_api_porta');
+        push(localBaseUrl('localhost', scheme: scheme), 'web_localhost_api_porta');
+        push('$scheme://127.0.0.1', 'web_loopback_sem_porta');
+        push('$scheme://localhost', 'web_localhost_sem_porta');
       }
     }
 
     if (PlatformCapabilities.isAndroid) {
       push(localBaseUrl('10.0.2.2'), 'android_emulador');
-
-      // Para celular físico, rode o app com:
-      // flutter run --dart-define=NOVA_API_PORT=8000 --dart-define=NOVA_API_URL=http://SEU_IP_LOCAL:8000
       push(localBaseUrl('127.0.0.1'), 'android_loopback');
       push(localBaseUrl('localhost'), 'android_localhost');
-      return out;
     }
 
     push(

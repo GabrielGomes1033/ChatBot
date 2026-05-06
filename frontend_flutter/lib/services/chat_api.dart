@@ -307,6 +307,90 @@ class ChatApiService {
         );
   }
 
+  List<String> _healthProbePaths() {
+    return const [
+      '/health',
+      '/api/health',
+      '/healthz',
+      '/api/healthz',
+      '/status',
+      '/api/status',
+      '/system/status',
+      '/api/system/status',
+    ];
+  }
+
+  bool _looksHealthyPayload(Map<String, dynamic> payload) {
+    final ok = payload['ok'];
+    if (ok == true) return true;
+
+    final healthy = payload['healthy'];
+    if (healthy == true) return true;
+
+    final status = (payload['status'] ?? payload['state'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    if (status == 'ok' ||
+        status == 'healthy' ||
+        status == 'up' ||
+        status == 'running') {
+      return true;
+    }
+
+    if (payload.containsKey('version') ||
+        payload.containsKey('service') ||
+        payload.containsKey('uptime')) {
+      return true;
+    }
+
+    return false;
+  }
+
+  Future<Map<String, dynamic>> _probeHealthAtBase(
+    ApiEndpointConfig candidate,
+  ) async {
+    dynamic lastError;
+
+    for (final path in _healthProbePaths()) {
+      try {
+        final payload = await _requestJsonAtBase(
+          candidate.baseUrl,
+          'GET',
+          path,
+          allowPathFallback: false,
+        );
+
+        if (_looksHealthyPayload(payload)) {
+          return {
+            ...payload,
+            'ok': true,
+            'reachable': true,
+            'health_path': path,
+          };
+        }
+
+        return {
+          ...payload,
+          'ok': payload['ok'] == true,
+          'reachable': true,
+          'health_path': path,
+        };
+      } on ApiHttpException catch (e) {
+        lastError = e;
+        if (e.statusCode == 404) {
+          continue;
+        }
+        rethrow;
+      } catch (e) {
+        lastError = e;
+      }
+    }
+
+    if (lastError != null) throw lastError;
+    throw Exception('Nenhuma rota de saúde respondeu para ${candidate.baseUrl}.');
+  }
+
   Future<Map<String, dynamic>> discoverBackend({
     String? explicitBaseUrl,
   }) async {
@@ -317,12 +401,7 @@ class ChatApiService {
 
     for (final candidate in candidates) {
       try {
-        final payload = await _requestJsonAtBase(
-          candidate.baseUrl,
-          'GET',
-          '/health',
-          allowPathFallback: false,
-        );
+        final payload = await _probeHealthAtBase(candidate);
         _endpoint = candidate;
         return {
           ...payload,

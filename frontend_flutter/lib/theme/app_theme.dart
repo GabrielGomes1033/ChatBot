@@ -91,6 +91,39 @@ class AppTheme {
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
       ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        modalBackgroundColor: Color.lerp(
+          palette.surface,
+          palette.glass,
+          brightness == Brightness.dark ? 0.36 : 0.52,
+        ),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Color.lerp(
+          palette.brandSurface,
+          palette.surfaceStrong,
+          brightness == Brightness.dark ? 0.22 : 0.14,
+        ),
+        contentTextStyle: textTheme.bodyMedium?.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+        ),
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(
+            color: palette.glassBorder.withValues(
+              alpha: brightness == Brightness.dark ? 0.36 : 0.72,
+            ),
+          ),
+        ),
+      ),
       cardTheme: CardThemeData(
         elevation: 0,
         color: palette.surface,
@@ -154,6 +187,27 @@ class AppTheme {
       listTileTheme: ListTileThemeData(
         iconColor: palette.textSecondary,
         textColor: palette.textPrimary,
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: palette.surface.withValues(
+          alpha: brightness == Brightness.dark ? 0.84 : 0.88,
+        ),
+        indicatorColor: palette.primarySoft.withValues(
+          alpha: brightness == Brightness.dark ? 0.38 : 0.22,
+        ),
+        labelTextStyle: WidgetStatePropertyAll(
+          textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: palette.textPrimary,
+          ),
+        ),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return IconThemeData(
+            color: selected ? palette.primary : palette.textSecondary,
+            size: selected ? 24 : 22,
+          );
+        }),
       ),
     );
   }

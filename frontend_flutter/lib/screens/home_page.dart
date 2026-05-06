@@ -35,18 +35,11 @@ import '../theme/colors.dart';
 import '../widgets/glass_container.dart';
 import '../widgets/nova_chat_input.dart';
 import '../widgets/nova_message_bubble.dart';
-import '../widgets/nova_modules_panel.dart';
 import '../widgets/nova_sidebar_bio.dart';
 import '../widgets/nova_top_bar.dart';
+import '../widgets/nova_modules_panel.dart';
 import '../widgets/home/brain_widgets.dart';
-import '../widgets/home/chat_shell_widgets.dart'
-    show
-        NovaAssistantState,
-        NovaAssistantStateX,
-        NovaChatLine,
-        NovaConversationAction,
-        NovaGridBackground,
-        NovaModuleSnapshot;
+import '../widgets/home/chat_shell_widgets.dart' hide NovaTopBar;
 import '../widgets/home/dialog_widgets.dart';
 
 class _NovaDevGeneratorRequest {
@@ -823,9 +816,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   List<NovaConversationAction> _defaultConversationActions() {
     return _actionObjectsFromLabels(
       const [
-        'Continuar projeto',
-        'Gerar codigo',
-        'Melhorar interface',
+        'Salvar contexto',
+        'Automatizar depois',
+        'Aprofundar pesquisa',
       ],
     );
   }
@@ -839,9 +832,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       actions: _defaultConversationActions(),
       suggestions: _actionObjectsFromLabels(
         const [
-          'Organizar proximo passo',
           'Salvar contexto',
           'Automatizar depois',
+          'Aprofundar pesquisa',
         ],
         firstPrimary: false,
       ),
@@ -6193,13 +6186,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           statusLabel: _assistantState.label,
           contextText: _conversationContextLabel(),
           onOpenMemory: _openBrainDialog,
-          compact: compact,
-          spotlight: spotlight,
-        ),
-        SizedBox(height: compact ? 12 : 14),
-        NovaModulesPanel(
-          modules: _contextModules(),
-          onModuleTap: _handleModuleTap,
           compact: compact,
           spotlight: spotlight,
         ),
