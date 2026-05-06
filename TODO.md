@@ -1,6 +1,4 @@
-# TODO
-
-- [x] Remove stale `_pending_translation_by_user` usage from `backend_python/core/orchestrator.py`
-- [ ] Run targeted tests: `backend_python/tests/test_search_translation.py`
-- [ ] Run combined tests: `backend_python/tests/test_search_translation.py backend_python/tests/test_kira_client.py`
-- [ ] Report results and remaining dependency issues
+- [ ] Reproduzir problema do endpoint /chat via testes
+- [ ] Corrigir comportamento do /chat em backend_python/routes/chat_routes.py
+- [ ] Adicionar/ajustar testes em backend_python/tests/test_api.py
+- [ ] Executar testes de API e validar resultado
