@@ -1,4 +1,6 @@
-- [ ] Refinar tema global premium em `frontend_flutter/lib/theme/app_theme.dart`
-- [ ] Aplicar consistência visual premium em dialogs/superfícies de `frontend_flutter/lib/screens/home_page.dart`
-- [ ] Executar verificação estática com `flutter analyze` em `frontend_flutter`
-- [ ] Marcar conclusão da entrega premium
+# TODO
+
+- [x] Remove stale `_pending_translation_by_user` usage from `backend_python/core/orchestrator.py`
+- [ ] Run targeted tests: `backend_python/tests/test_search_translation.py`
+- [ ] Run combined tests: `backend_python/tests/test_search_translation.py backend_python/tests/test_kira_client.py`
+- [ ] Report results and remaining dependency issues

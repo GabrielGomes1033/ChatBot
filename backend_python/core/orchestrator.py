@@ -12,7 +12,6 @@ from core.intent_classifier import IntentDecision, classify_intent
 from core.respostas import detectar_intencao as detect_response_intent, responder
 from core.response_style import style_response
 from core.translation_service import (
-    language_label_pt,
     parse_search_translation_request,
     parse_text_translation_request,
     translate_text,
@@ -54,26 +53,6 @@ STOPWORDS = {
     "isto",
 }
 
-AFFIRMATIVE_REPLIES = {
-    "sim",
-    "s",
-    "ok",
-    "confirmo",
-    "pode",
-    "pode sim",
-    "yes",
-    "y",
-}
-
-NEGATIVE_REPLIES = {
-    "nao",
-    "não",
-    "n",
-    "cancelar",
-    "cancela",
-    "negativo",
-    "no",
-}
 
 TOOL_APPROVAL_PROMPTS = {
     "schedule_calendar_event": "Posso agendar isso na sua Google Agenda, mas preciso da sua confirmacao.",
@@ -212,6 +191,37 @@ def _shorten(text: str, limit: int = 180) -> str:
     return (truncated or body[:limit]).rstrip(" ,.;:-") + "..."
 
 
+def _extract_clean_search_summary(text: str) -> str:
+    body = str(text or "")
+    if not body.strip():
+        return ""
+
+    cleaned = re.sub(
+        r"^\s*Pesquisei(?:\s+sobre[^\n:]*)?\s+e\s+organizei[^\n:]*:\s*",
+        "",
+        body,
+        flags=re.IGNORECASE,
+    ).strip()
+
+    marker_pattern = re.compile(
+        r"(?im)^\s*(?:pontos?\s+principais?|fontes?\s+consultadas?|referencias?|references?)\s*:\s*$"
+    )
+    marker_match = marker_pattern.search(cleaned)
+    if marker_match:
+        cleaned = cleaned[: marker_match.start()].strip()
+
+    resumo_match = re.search(r"(?is)resumo\s+direto\s*:\s*(.+)", cleaned)
+    if resumo_match:
+        trecho = resumo_match.group(1)
+        marker_inside = marker_pattern.search(trecho)
+        if marker_inside:
+            trecho = trecho[: marker_inside.start()]
+        cleaned = trecho.strip()
+
+    cleaned = re.sub(r"(?im)^\s*resumo\s+direto\s*:\s*", "", cleaned).strip()
+    return _normalize_text(cleaned)
+
+
 def _summarize_text(text: str) -> str:
     body = _normalize_text(text)
     if not body:
@@ -239,14 +249,6 @@ def _extract_named_fact(items: list[dict[str, Any]], label: str) -> str:
         if lowered.startswith(prefix):
             return content[len(prefix) :].strip()
     return ""
-
-
-def _is_affirmative_reply(text: str) -> bool:
-    return _normalize_text(text).lower() in AFFIRMATIVE_REPLIES
-
-
-def _is_negative_reply(text: str) -> bool:
-    return _normalize_text(text).lower() in NEGATIVE_REPLIES
 
 
 def _terms(text: str) -> set[str]:
@@ -357,8 +359,29 @@ class RuleBasedLLM:
                     "Nao consegui pesquisar agora. Posso tentar novamente com um recorte mais especifico.",
                     modo=mode,
                 )
-            resposta = formatar_resposta_pesquisa(result, max_fontes=4, max_links=3)
-            return style_response(resposta, modo=mode)
+            summary = _extract_clean_search_summary(str(result.get("summary", "")).strip())
+            snippets: list[str] = []
+            for item in (result.get("results") or []):
+                if not isinstance(item, dict):
+                    continue
+                snippet = _normalize_text(str(item.get("snippet", "")))
+                if snippet:
+                    snippets.append(snippet)
+
+            if summary:
+                if snippets:
+                    summary_l = summary.casefold()
+                    snippet_principal = ""
+                    for snippet in snippets:
+                        if snippet.casefold() not in summary_l:
+                            snippet_principal = snippet
+                            break
+                    if snippet_principal:
+                        return style_response(f"{summary}\n{snippet_principal}", modo=mode)
+                return style_response(summary, modo=mode)
+
+            resposta = formatar_resposta_pesquisa(result, max_fontes=0, max_links=0)
+            return style_response(_extract_clean_search_summary(resposta) or resposta, modo=mode)
 
         if tool_name == "save_memory":
             if ok:
@@ -597,7 +620,6 @@ class NovaOrchestrator:
         self.brain_vault = brain_vault or BrainVault()
         self._last_search_by_user: dict[str, dict[str, Any]] = {}
         self._last_intent_by_user: dict[str, str] = {}
-        self._pending_translation_by_user: dict[str, dict[str, Any]] = {}
 
     def _persist_last_search(
         self,
@@ -775,21 +797,6 @@ class NovaOrchestrator:
             reply=reply,
         )
 
-    def _offer_search_translation(self, user_id: str, reply: str) -> str:
-        uid = str(user_id or "").strip() or "default"
-        target_language = "pt"
-        target_label_pt = language_label_pt(target_language)
-        self._pending_translation_by_user[uid] = {
-            "kind": "search",
-            "target_language": target_language,
-            "target_label_pt": target_label_pt,
-        }
-        offer = (
-            f"Se quiser, eu tambem posso traduzir essa pesquisa para {target_label_pt}. "
-            "Responda sim ou nao."
-        )
-        return f"{str(reply or '').rstrip()}\n\n{offer}"
-
     def _translate_last_search(
         self,
         user_id: str,
@@ -800,7 +807,6 @@ class NovaOrchestrator:
         mode: str = "normal",
     ) -> dict[str, Any]:
         uid = str(user_id or "").strip() or "default"
-        self._pending_translation_by_user.pop(uid, None)
         last_search = self._last_search_by_user.get(uid)
         if not isinstance(last_search, dict) or not last_search.get("reply"):
             last_search = self._load_last_search_from_memory(uid)
@@ -890,51 +896,6 @@ class NovaOrchestrator:
             target_label_pt=target_label_pt,
             mode=mode,
         )
-
-    def _handle_pending_translation_confirmation(
-        self,
-        user_id: str,
-        text: str,
-        *,
-        mode: str = "normal",
-    ) -> dict[str, Any] | None:
-        uid = str(user_id or "").strip() or "default"
-        pending = self._pending_translation_by_user.get(uid)
-        if not isinstance(pending, dict) or not pending:
-            return None
-
-        if _is_negative_reply(text):
-            self._pending_translation_by_user.pop(uid, None)
-            reply = style_response(
-                "Tudo bem. Mantive a pesquisa no idioma original.",
-                modo=mode,
-            )
-            self._remember_turn(uid, text, reply)
-            return {
-                "reply": reply,
-                "decision_type": "response",
-                "approval_needed": False,
-                "tool_name": None,
-                "params": {},
-                "tool_result": {"ok": True, "cancelled": True},
-                "context": self.memory.search_recent(uid, limit=8),
-            }
-
-        if not _is_affirmative_reply(text):
-            self._pending_translation_by_user.pop(uid, None)
-            return None
-
-        if str(pending.get("kind", "")).strip() == "search":
-            return self._translate_last_search(
-                uid,
-                text,
-                target_language=str(pending.get("target_language", "")).strip() or "pt",
-                target_label_pt=str(pending.get("target_label_pt", "")).strip() or "portugues",
-                mode=mode,
-            )
-
-        self._pending_translation_by_user.pop(uid, None)
-        return None
 
     def _handle_text_translation(
         self,
@@ -1158,9 +1119,6 @@ class NovaOrchestrator:
             }
 
         self._capture_profile_facts(uid, msg)
-        translated_offer = self._handle_pending_translation_confirmation(uid, msg, mode=mode)
-        if translated_offer is not None:
-            return translated_offer
         translated_search = self._handle_search_translation(uid, msg, mode=mode)
         if translated_search is not None:
             return translated_search
