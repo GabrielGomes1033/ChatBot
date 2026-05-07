@@ -816,9 +816,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   List<NovaConversationAction> _defaultConversationActions() {
     return _actionObjectsFromLabels(
       const [
-        'Salvar contexto',
-        'Automatizar depois',
-        'Aprofundar pesquisa',
+        'Organizar próximo passo',
+        'Comparar fontes',
+        'Criar lembrete',
       ],
     );
   }
@@ -829,12 +829,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       text: _contextualGreetingBriefing(),
       summary: _contextualGreetingHeadline(),
       explanation: _contextualGreetingBriefing(),
-      actions: _defaultConversationActions(),
+      actions: _actionObjectsFromLabels(
+        const [
+          'Organizar próximo passo',
+          'Abrir memoria e notas',
+          'Criar lembrete',
+        ],
+      ),
       suggestions: _actionObjectsFromLabels(
         const [
-          'Salvar contexto',
-          'Automatizar depois',
-          'Aprofundar pesquisa',
+          'Comparar fontes',
+          'Salvar na memoria',
+          'Criar lembrete',
         ],
         firstPrimary: false,
       ),
@@ -859,10 +865,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   NovaChatLine _pinnedConversationLine() {
-    if (_chat.isNotEmpty && !_chat.first.fromUser) {
-      return _chat.first;
-    }
-    return _buildGreetingLine();
+    return _lastAssistantLine() ?? _buildGreetingLine();
   }
 
   List<NovaChatLine> _visibleChatLines() {
@@ -910,20 +913,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       'explicacao': reply,
       'acoes': const [
         'Continuar daqui',
-        'Organizar proximo passo',
+        'Organizar próximo passo',
         'Salvar contexto',
       ],
-      'sugestoes': userMessage.toLowerCase().contains('projeto')
-          ? const [
-              'Continuar projeto',
-              'Gerar codigo',
-              'Melhorar interface',
-            ]
-          : const [
-              'Automatizar depois',
-              'Criar lembrete',
-              'Aprofundar pesquisa',
-            ],
+      'sugestoes': const [
+        'Organizar próximo passo',
+        'Comparar fontes',
+        'Criar lembrete',
+      ],
       'assistant_state': operational.toLowerCase(),
     };
   }
@@ -962,7 +959,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         : _actionObjectsFromLabels(
             const [
               'Continuar daqui',
-              'Organizar proximo passo',
+              'Organizar próximo passo',
               'Salvar contexto',
             ],
             firstPrimary: false,
@@ -1801,9 +1798,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             actions: _defaultConversationActions(),
             suggestions: _actionObjectsFromLabels(
               const [
-                'Continuar projeto',
-                'Organizar proximo passo',
-                'Salvar contexto',
+                'Organizar próximo passo',
+                'Salvar na memoria',
+                'Criar lembrete',
               ],
               firstPrimary: false,
             ),
@@ -3967,14 +3964,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               const [
                 'Continuar daqui',
                 'Revisar a acao',
-                'Automatizar depois',
+                'Organizar próximo passo',
               ],
             ),
             suggestions: _actionObjectsFromLabels(
               const [
-                'Aprofundar pesquisa',
+                'Comparar fontes',
                 'Criar lembrete',
-                'Melhorar interface',
+                'Salvar na memoria',
               ],
               firstPrimary: false,
             ),
@@ -5623,7 +5620,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
 
     if (request == null) {
-      final prompt = action.prompt.trim().isNotEmpty ? action.prompt.trim() : label;
+      final prompt =
+          action.prompt.trim().isNotEmpty ? action.prompt.trim() : label;
       await _executeCommand(prompt, fromVoice: false);
       return;
     }
@@ -5730,58 +5728,127 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     bool ultrawide = false,
   }) {
     final visibleLines = _visibleChatLines();
-    return GlassContainer(
-      borderRadius: smallMobile ? 30 : (ultrawide ? 36 : 34),
-      padding: EdgeInsets.zero,
-      blur: ultrawide ? 26 : 24,
-      opacity: context.isNovaDark ? 0.14 : 0.26,
-      child: ListView.builder(
-        reverse: true,
-        padding: EdgeInsets.fromLTRB(
-          ultrawide ? 22 : (smallMobile ? 12 : (compact ? 14 : 18)),
-          ultrawide ? 24 : (smallMobile ? 16 : (compact ? 18 : 22)),
-          ultrawide ? 22 : (smallMobile ? 12 : (compact ? 14 : 18)),
-          ultrawide ? 24 : (smallMobile ? 16 : (compact ? 18 : 22)),
-        ),
-        itemCount: visibleLines.length + (_sending ? 1 : 0),
-        itemBuilder: (context, index) {
-          if (_sending && index == 0) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: NovaMessageBubble(
-                fromUser: false,
-                text: _assistantState == NovaAssistantState.executing
-                    ? 'Estou executando o próximo passo e organizando a resposta.'
-                    : 'Estou entendendo o contexto antes de responder.',
-                timestamp: DateTime.now(),
-                isLive: true,
-              ),
-            );
-          }
+    final colors = context.novaColors;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final chatCompressed = constraints.maxHeight < 360;
+        final showShellLabel = !chatCompressed;
 
-          final adjustedIndex = _sending ? index - 1 : index;
-          final line = visibleLines[visibleLines.length - 1 - adjustedIndex];
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: NovaMessageBubble(
-              fromUser: line.fromUser,
-              text: line.text,
-              summary: line.summary,
-              timestamp: line.timestamp,
-              viewLabel: 'Ver codigo',
-              onViewTap: line.copyText?.trim().isNotEmpty == true
-                  ? () => _previewGeneratedCode(line)
-                  : null,
-              copyLabel: line.copyLabel,
-              onCopyTap: line.copyText?.trim().isNotEmpty == true
-                  ? () => _copyGeneratedCode(line)
-                  : null,
-              actions: line.fromUser ? const [] : _actionsForLine(line),
-              onActionTap: line.fromUser ? null : _handleConversationAction,
-            ),
-          );
-        },
-      ),
+        return GlassContainer(
+          borderRadius: smallMobile ? 30 : (ultrawide ? 36 : 34),
+          padding: EdgeInsets.fromLTRB(
+            ultrawide ? 18 : (smallMobile ? 10 : 14),
+            ultrawide ? 18 : (smallMobile ? 10 : 14),
+            ultrawide ? 18 : (smallMobile ? 10 : 14),
+            ultrawide ? 14 : (smallMobile ? 10 : 12),
+          ),
+          blur: ultrawide ? 26 : 24,
+          opacity: context.isNovaDark ? 0.14 : 0.26,
+          child: Column(
+            children: [
+              _buildPinnedConversationCard(
+                compact: compact || smallMobile || chatCompressed,
+                compressed: chatCompressed,
+                microCompact: smallMobile,
+                ultrawide: ultrawide,
+              ),
+              if (showShellLabel) ...[
+                SizedBox(height: smallMobile ? 10 : 12),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.forum_outlined,
+                      size: 15,
+                      color: colors.textSecondary,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Chat ativo',
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: smallMobile ? 12.0 : 12.6,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      visibleLines.isEmpty
+                          ? 'Aguardando'
+                          : '${visibleLines.length} registro${visibleLines.length == 1 ? '' : 's'}',
+                      style: TextStyle(
+                        color: colors.textSecondary.withValues(alpha: 0.86),
+                        fontSize: smallMobile ? 11.4 : 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: smallMobile ? 10 : 12),
+                Container(
+                  height: 1,
+                  color: colors.glassBorder.withValues(
+                    alpha: context.isNovaDark ? 0.34 : 0.72,
+                  ),
+                ),
+                SizedBox(height: smallMobile ? 10 : 12),
+              ] else
+                const SizedBox(height: 8),
+              Expanded(
+                child: ListView.builder(
+                  reverse: true,
+                  padding: EdgeInsets.fromLTRB(
+                    ultrawide ? 6 : (smallMobile ? 0 : 2),
+                    0,
+                    ultrawide ? 6 : (smallMobile ? 0 : 2),
+                    2,
+                  ),
+                  itemCount: visibleLines.length + (_sending ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (_sending && index == 0) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: NovaMessageBubble(
+                          fromUser: false,
+                          text: _assistantState == NovaAssistantState.executing
+                              ? 'Estou executando o próximo passo e organizando a resposta.'
+                              : 'Estou entendendo o contexto antes de responder.',
+                          timestamp: DateTime.now(),
+                          isLive: true,
+                        ),
+                      );
+                    }
+
+                    final adjustedIndex = _sending ? index - 1 : index;
+                    final line =
+                        visibleLines[visibleLines.length - 1 - adjustedIndex];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: NovaMessageBubble(
+                        fromUser: line.fromUser,
+                        text: line.text,
+                        summary: line.summary,
+                        timestamp: line.timestamp,
+                        viewLabel: 'Ver codigo',
+                        onViewTap: line.copyText?.trim().isNotEmpty == true
+                            ? () => _previewGeneratedCode(line)
+                            : null,
+                        copyLabel: line.copyLabel,
+                        onCopyTap: line.copyText?.trim().isNotEmpty == true
+                            ? () => _copyGeneratedCode(line)
+                            : null,
+                        actions:
+                            line.fromUser ? const [] : _actionsForLine(line),
+                        onActionTap:
+                            line.fromUser ? null : _handleConversationAction,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -5791,38 +5858,72 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     required bool microCompact,
     required bool ultrawide,
   }) {
+    final colors = context.novaColors;
     final line = _pinnedConversationLine();
     final actions = _actionsForLine(line);
-    final showBriefing = !compressed && !microCompact;
-    final showActions = !compressed && actions.isNotEmpty;
+    final headline = line.summary?.trim().isNotEmpty == true
+        ? line.summary!.trim()
+        : _contextualGreetingHeadline();
+    final briefingSource = line.explanation?.trim().isNotEmpty == true
+        ? line.explanation!.trim()
+        : _contextualGreetingBriefing();
+    final briefing = _truncateRailText(
+      briefingSource,
+      limit: microCompact ? 96 : (compact ? 118 : 148),
+    );
+    final showBriefing = !compressed;
+    final showActions = actions.isNotEmpty && !compressed;
     final logoSize =
-        compressed ? 40.0 : (ultrawide ? 54.0 : (microCompact ? 42.0 : 46.0));
-    final titleFontSize = compressed
-        ? 14.6
-        : (ultrawide ? 17.4 : (microCompact ? 14.2 : (compact ? 15.5 : 16.5)));
-    final briefingFontSize = ultrawide ? 14.8 : (compact ? 13.8 : 14.4);
-    final actionLimit = microCompact ? 3 : 4;
+        microCompact ? 34.0 : (compact ? 38.0 : (ultrawide ? 44.0 : 40.0));
+    final titleFontSize =
+        microCompact ? 13.2 : (compact ? 14.0 : (ultrawide ? 15.8 : 14.8));
+    final briefingFontSize = microCompact ? 12.0 : (compact ? 12.4 : 13.0);
+    final actionLimit = microCompact ? 2 : 3;
+
+    final stateColor = switch (_assistantState) {
+      NovaAssistantState.idle => colors.textSecondary,
+      NovaAssistantState.thinking => const Color(0xFFB7791F),
+      NovaAssistantState.responding => colors.primary,
+      NovaAssistantState.suggesting => const Color(0xFF18805A),
+      NovaAssistantState.executing => const Color(0xFF0F766E),
+    };
 
     Widget statePill() {
       return Container(
         padding: EdgeInsets.symmetric(
-          horizontal: compressed ? 10 : 12,
-          vertical: compressed ? 7 : 9,
+          horizontal: microCompact ? 9 : 10,
+          vertical: microCompact ? 5 : 6,
         ),
         decoration: BoxDecoration(
-          color: const Color(0xFF1D7F4E).withValues(alpha: 0.22),
+          color: stateColor.withValues(
+            alpha: context.isNovaDark ? 0.18 : 0.12,
+          ),
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color: const Color(0xFF22C55E).withValues(alpha: 0.48),
+            color: stateColor.withValues(alpha: 0.34),
           ),
         ),
-        child: Text(
-          _assistantState.label,
-          style: TextStyle(
-            color: const Color(0xFF22C55E),
-            fontSize: compressed ? 11.2 : 12,
-            fontWeight: FontWeight.w800,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                color: stateColor,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              _assistantState.label,
+              style: TextStyle(
+                color: stateColor,
+                fontSize: microCompact ? 11.0 : 11.4,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -5836,14 +5937,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         child: Container(
           width: expand ? double.infinity : null,
           padding: EdgeInsets.symmetric(
-            horizontal: compact ? 14 : 16,
-            vertical: microCompact ? 12 : (compact ? 11 : 12),
+            horizontal: compact ? 12 : 13,
+            vertical: microCompact ? 9 : 10,
           ),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(microCompact ? 20 : 18),
+            color: Colors.white.withValues(
+              alpha: context.isNovaDark ? 0.05 : 0.46,
+            ),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: Colors.white.withValues(alpha: 0.16),
+              color: colors.glassBorder.withValues(
+                alpha: context.isNovaDark ? 0.34 : 0.9,
+              ),
             ),
           ),
           child: Row(
@@ -5851,16 +5956,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             children: [
               Icon(
                 action.icon ?? Icons.arrow_forward_rounded,
-                size: 16,
-                color: Colors.white,
+                size: 15,
+                color: colors.textPrimary,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 7),
               Flexible(
                 child: Text(
                   action.label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: microCompact ? 11.8 : 12.4,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -5878,159 +5985,129 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return Container(
       width: double.infinity,
       padding: EdgeInsets.fromLTRB(
-        compressed
-            ? 16
-            : (ultrawide ? 26 : (microCompact ? 14 : (compact ? 18 : 22))),
-        compressed
-            ? 14
-            : (ultrawide ? 22 : (microCompact ? 12 : (compact ? 18 : 20))),
-        compressed
-            ? 16
-            : (ultrawide ? 26 : (microCompact ? 14 : (compact ? 18 : 22))),
-        compressed
-            ? 14
-            : (ultrawide ? 20 : (microCompact ? 12 : (compact ? 16 : 18))),
+        ultrawide ? 18 : (microCompact ? 12 : 15),
+        ultrawide ? 16 : (microCompact ? 12 : 14),
+        ultrawide ? 18 : (microCompact ? 12 : 15),
+        ultrawide ? 16 : (microCompact ? 12 : 14),
       ),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: context.isNovaDark
-              ? (ultrawide
-                  ? const [
-                      Color(0xFF243244),
-                      Color(0xFF314766),
-                    ]
-                  : (microCompact
-                      ? const [
-                          Color(0xFF34465E),
-                          Color(0xFF3A577A),
-                        ]
-                      : const [
-                          Color(0xFF2D3A4D),
-                          Color(0xFF34465F),
-                        ]))
-              : (ultrawide
-                  ? const [
-                      Color(0xFF2C3F58),
-                      Color(0xFF47607D),
-                    ]
-                  : (microCompact
-                      ? const [
-                          Color(0xFF37506D),
-                          Color(0xFF557595),
-                        ]
-                      : const [
-                          Color(0xFF32435D),
-                          Color(0xFF41546F),
-                        ])),
+          colors: [
+            Color.lerp(
+              colors.surfaceStrong,
+              colors.brandSurface,
+              context.isNovaDark ? 0.42 : 0.22,
+            )!
+                .withValues(alpha: context.isNovaDark ? 0.92 : 0.86),
+            Color.lerp(
+              colors.surface,
+              colors.primarySoft,
+              context.isNovaDark ? 0.18 : 0.34,
+            )!
+                .withValues(alpha: context.isNovaDark ? 0.84 : 0.74),
+          ],
         ),
-        borderRadius: BorderRadius.circular(microCompact ? 28 : 30),
+        borderRadius: BorderRadius.circular(microCompact ? 22 : 24),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.14),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: ultrawide ? 0.18 : 0.16),
-            blurRadius: ultrawide ? 32 : 26,
-            offset: Offset(0, ultrawide ? 14 : 12),
+          color: colors.glassBorder.withValues(
+            alpha: context.isNovaDark ? 0.36 : 0.94,
           ),
-        ],
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(999),
+              color: Colors.white.withValues(
+                alpha: context.isNovaDark ? 0.06 : 0.34,
+              ),
+              borderRadius: BorderRadius.circular(30),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.16),
+                color: colors.glassBorder.withValues(
+                  alpha: context.isNovaDark ? 0.22 : 0.84,
+                ),
               ),
             ),
             child: Text(
-              microCompact
-                  ? 'Agora'
-                  : (ultrawide ? 'Painel principal' : 'Resumo da sessão'),
+              microCompact ? 'Agora' : 'Sessão ativa',
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.82),
-                fontSize: 11.2,
+                color: colors.textSecondary,
+                fontSize: 10.8,
                 fontWeight: FontWeight.w700,
               ),
             ),
           ),
-          SizedBox(height: microCompact ? 10 : 14),
+          SizedBox(height: microCompact ? 10 : 12),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               NovaMetalLogo(size: logoSize),
-              SizedBox(width: compressed ? 10 : (microCompact ? 10 : 12)),
+              SizedBox(width: microCompact ? 10 : 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SizedBox(height: compressed ? 0 : (microCompact ? 1 : 2)),
-                    const Text(
-                      'NOVA',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w800,
-                      ),
+                    Row(
+                      children: [
+                        Text(
+                          'NOVA',
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: microCompact ? 12.6 : 13.4,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.1,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'ligada ao contexto',
+                          style: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: microCompact ? 10.8 : 11.2,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
-                    SizedBox(height: compressed ? 6 : 10),
+                    SizedBox(height: microCompact ? 6 : 8),
                     Text(
-                      line.summary?.trim().isNotEmpty == true
-                          ? line.summary!.trim()
-                          : _contextualGreetingHeadline(),
-                      maxLines: compressed ? 2 : (microCompact ? 2 : 3),
+                      headline,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: Colors.white,
+                        color: colors.textPrimary,
                         fontSize: titleFontSize,
                         fontWeight: FontWeight.w800,
-                        height: 1.2,
+                        height: 1.18,
                       ),
                     ),
-                    if (microCompact) ...[
-                      const SizedBox(height: 10),
-                      statePill(),
+                    if (showBriefing) ...[
+                      SizedBox(height: microCompact ? 6 : 8),
+                      Text(
+                        briefing,
+                        maxLines: microCompact ? 2 : 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: briefingFontSize,
+                          height: 1.38,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ],
                   ],
                 ),
               ),
-              if (!microCompact) ...[
-                const SizedBox(width: 12),
-                statePill(),
-              ],
+              const SizedBox(width: 10),
+              statePill(),
             ],
           ),
-          if (showBriefing) ...[
-            const SizedBox(height: 14),
-            Text(
-              line.explanation?.trim().isNotEmpty == true
-                  ? line.explanation!.trim()
-                  : _contextualGreetingBriefing(),
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.84),
-                fontSize: briefingFontSize,
-                height: 1.45,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
           if (showActions) ...[
-            const SizedBox(height: 16),
-            Text(
-              'Próximo passo',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.72),
-                fontSize: 12.2,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            SizedBox(height: microCompact ? 8 : 10),
+            SizedBox(height: microCompact ? 10 : 12),
             if (microCompact)
               Column(
                 children: actions
@@ -6045,21 +6122,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               )
             else
               Wrap(
-                spacing: ultrawide ? 12 : 10,
-                runSpacing: 10,
+                spacing: 8,
+                runSpacing: 8,
                 children: actions
                     .take(actionLimit)
                     .map((action) => actionChip(action))
                     .toList(),
               ),
           ],
-          if (!compressed && !microCompact) ...[
-            const SizedBox(height: 12),
+          if (!microCompact && !compressed) ...[
+            const SizedBox(height: 10),
             Text(
               '${line.timestamp.hour.toString().padLeft(2, '0')}:${line.timestamp.minute.toString().padLeft(2, '0')}',
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.56),
-                fontSize: 11.5,
+                color: colors.textSecondary.withValues(alpha: 0.76),
+                fontSize: 11.2,
               ),
             ),
           ],
@@ -6289,7 +6366,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     bool wideChat = false,
   }) {
     final topGap =
-        compressed ? 10.0 : (ultrawide ? 16.0 : (microCompact ? 8.0 : 14.0));
+        compressed ? 10.0 : (ultrawide ? 14.0 : (microCompact ? 8.0 : 12.0));
     final composerGap = compressed ? 10.0 : (microCompact ? 8.0 : 14.0);
     return Column(
       children: [
@@ -6299,13 +6376,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           onCameraTap: _pickQuickPhoto,
           contextText: _conversationContextLabel(),
           status: _assistantState,
-        ),
-        SizedBox(height: topGap),
-        _buildPinnedConversationCard(
-          compact: compact || microCompact,
-          compressed: compressed,
-          microCompact: microCompact,
-          ultrawide: ultrawide,
         ),
         SizedBox(height: topGap),
         Expanded(

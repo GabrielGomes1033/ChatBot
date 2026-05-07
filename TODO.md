@@ -1,4 +1,4 @@
-- [ ] Reproduzir problema do endpoint /chat via testes
-- [ ] Corrigir comportamento do /chat em backend_python/routes/chat_routes.py
-- [ ] Adicionar/ajustar testes em backend_python/tests/test_api.py
-- [ ] Executar testes de API e validar resultado
+- [x] Padronizar textos de ações/sugestões para acentuação consistente em `frontend_flutter/lib/screens/home_page.dart`
+- [x] Ajustar badge do card pinado em `_buildPinnedConversationCard` (padding/radius)
+- [x] Revisar ordem e consistência dos 3 CTAs finais (Organizar próximo passo, Comparar fontes, Criar lembrete) nos blocos hardcoded
+- [x] Atualizar checklist após conclusão das edições

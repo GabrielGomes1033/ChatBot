@@ -132,9 +132,9 @@ def _build_dev_payload(generated: dict[str, Any]) -> dict[str, Any]:
         "copy_label": generated.get("copy_label", "Copiar codigo"),
         "pending_confirmation": False,
         "next_actions": [
-            "Continuar projeto",
+            "Organizar proximo passo",
             "Explicar codigo",
-            "Melhorar interface",
+            "Criar lembrete",
         ],
     }
 
@@ -171,9 +171,9 @@ def _infer_actions(
         ]
     if "codigo" in text or "flutter" in text or "interface" in text or "projeto" in text:
         return [
-            "Continuar projeto",
-            "Gerar codigo",
-            "Melhorar interface",
+            "Organizar proximo passo",
+            "Explicar codigo",
+            "Criar lembrete",
         ]
     if "pesquisa" in text or "pesquise" in text or "resuma" in text:
         return [
@@ -222,9 +222,9 @@ def _infer_suggestions(
     if _contains_any(text, ("codigo", "flutter", "dev", "bug", "interface", "projeto")):
         suggestions.extend(
             [
-                "Continuar projeto",
-                "Gerar codigo",
-                "Melhorar interface",
+                "Organizar proximo passo",
+                "Explicar codigo",
+                "Criar lembrete",
             ]
         )
     if _contains_any(text, ("finance", "financeiro", "orcamento", "custo", "receita")):
@@ -349,9 +349,9 @@ def handle_chat_post(
                         ),
                         "assistant_state": "responding",
                         "next_actions": [
-                            "Continuar projeto",
-                            "Gerar codigo",
-                            "Melhorar interface",
+                            "Organizar proximo passo",
+                            "Explicar codigo",
+                            "Criar lembrete",
                         ],
                     },
                     400,
