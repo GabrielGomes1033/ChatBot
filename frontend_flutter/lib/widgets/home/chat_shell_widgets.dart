@@ -109,7 +109,6 @@ class NovaTopBar extends StatelessWidget {
     super.key,
     required this.onOpenQuickMenu,
     required this.onOpenUsersDialog,
-    required this.onPickQuickPhoto,
     required this.contextLabel,
     required this.assistantState,
     this.compact = true,
@@ -118,7 +117,6 @@ class NovaTopBar extends StatelessWidget {
 
   final VoidCallback onOpenQuickMenu;
   final VoidCallback onOpenUsersDialog;
-  final VoidCallback onPickQuickPhoto;
   final String contextLabel;
   final NovaAssistantState assistantState;
   final bool compact;
@@ -197,13 +195,6 @@ class NovaTopBar extends StatelessWidget {
               onPressed: onOpenUsersDialog,
               size: controlSize,
               tooltip: 'Usuarios',
-            ),
-            const SizedBox(width: 8),
-            NovaPillIconButton(
-              icon: Icons.camera_alt_outlined,
-              onPressed: onPickQuickPhoto,
-              size: controlSize,
-              tooltip: 'Analisar imagem',
             ),
           ],
         ),

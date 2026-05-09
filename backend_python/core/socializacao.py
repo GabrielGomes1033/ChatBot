@@ -7,9 +7,9 @@ MEMORIA_SOCIAL = "memoria/aprendizado_social.json"
 
 
 class SocializacaoIA:
-    def __init__(self, nova_agent, kira_agent):
+    def __init__(self, nova_agent, research_agent):
         self.nova = nova_agent
-        self.kira = kira_agent
+        self.research = research_agent
 
         self.temas = [
             "inteligência artificial",
@@ -70,21 +70,27 @@ class SocializacaoIA:
         mensagens = []
 
         fala_nova = (
-            f"KIRA, vamos conversar sobre {tema}. "
+            f"Núcleo de pesquisa, vamos conversar sobre {tema}. "
             "Quero entender como explicar esse assunto de forma mais humana."
         )
 
         for rodada in range(rodadas):
-            resposta_kira = self.kira.responder(fala_nova)
+            resposta_pesquisa = self.research.responder(fala_nova)
 
-            mensagens.append({"agente": "KIRA", "rodada": rodada + 1, "mensagem": resposta_kira})
+            mensagens.append(
+                {
+                    "agente": "PESQUISA",
+                    "rodada": rodada + 1,
+                    "mensagem": resposta_pesquisa,
+                }
+            )
 
-            fala_nova = self.nova.humanizar_resposta(tema, resposta_kira)
+            fala_nova = self.nova.humanizar_resposta(tema, resposta_pesquisa)
 
             mensagens.append({"agente": "NOVA", "rodada": rodada + 1, "mensagem": fala_nova})
 
             fala_nova = (
-                f"KIRA, avalie esta resposta da NOVA e diga como melhorar "
+                f"Núcleo de pesquisa, avalie esta resposta da NOVA e diga como melhorar "
                 f"a clareza, precisão e profundidade:\n\n{fala_nova}"
             )
 
@@ -98,9 +104,9 @@ class SocializacaoIA:
     def gerar_aprendizado(self, tema, mensagens):
         prompt = (
             f"Com base na conversa sobre {tema}, gere um aprendizado curto "
-            "para melhorar futuras respostas da NOVA e da KIRA."
+            "para melhorar futuras respostas da NOVA e da pesquisa."
         )
 
-        resumo_kira = self.kira.responder(prompt)
+        resumo_pesquisa = self.research.responder(prompt)
 
-        return resumo_kira
+        return resumo_pesquisa

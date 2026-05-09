@@ -11,7 +11,6 @@ class NovaTopBar extends StatelessWidget {
     super.key,
     required this.onMenuTap,
     required this.onUserTap,
-    required this.onCameraTap,
     required this.status,
     required this.contextText,
     this.userLabel = 'Usuário',
@@ -19,7 +18,6 @@ class NovaTopBar extends StatelessWidget {
 
   final VoidCallback onMenuTap;
   final VoidCallback onUserTap;
-  final VoidCallback onCameraTap;
   final NovaAssistantState status;
   final String contextText;
   final String userLabel;
@@ -132,13 +130,6 @@ class NovaTopBar extends StatelessWidget {
                           tooltip: userLabel,
                           size: controlSize,
                         ),
-                        const SizedBox(width: 8),
-                        _TopCircleButton(
-                          icon: Icons.camera_alt_outlined,
-                          onTap: onCameraTap,
-                          tooltip: 'Abrir câmera',
-                          size: controlSize,
-                        ),
                       ],
                     ),
                   ],
@@ -160,13 +151,6 @@ class NovaTopBar extends StatelessWidget {
                       icon: Icons.person_outline_rounded,
                       onTap: onUserTap,
                       tooltip: userLabel,
-                      size: controlSize,
-                    ),
-                    const SizedBox(width: 8),
-                    _TopCircleButton(
-                      icon: Icons.camera_alt_outlined,
-                      onTap: onCameraTap,
-                      tooltip: 'Abrir câmera',
                       size: controlSize,
                     ),
                   ],

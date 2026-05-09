@@ -208,6 +208,42 @@ void main() {
     expect(body['context'], 'interface do projeto NOVA');
   });
 
+  test('loginUser devolve sessao estruturada do consumidor final', () async {
+    final service = ChatApiService(
+      baseUrl: 'http://127.0.0.1:8000',
+      httpExecutor: (
+        String method,
+        Uri uri, {
+        required Map<String, String> headers,
+        String? encodedBody,
+      }) async {
+        expect(method, 'POST');
+        expect(uri.toString(), 'http://127.0.0.1:8000/auth/login');
+        return http.Response(
+          jsonEncode({
+            'ok': true,
+            'session': {
+              'user_id': 'user_123',
+              'name': 'Gabriel',
+              'email': 'gabriel@example.com',
+              'role': 'usuario',
+            },
+          }),
+          200,
+        );
+      },
+    );
+
+    final session = await service.loginUser(
+      email: 'gabriel@example.com',
+      password: 'nova12345',
+    );
+
+    expect(session.userId, 'user_123');
+    expect(session.name, 'Gabriel');
+    expect(session.email, 'gabriel@example.com');
+  });
+
   test(
       'generateDevCode faz fallback para /chat quando /dev/generate nao existe',
       () async {

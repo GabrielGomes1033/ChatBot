@@ -222,6 +222,71 @@ def _extract_clean_search_summary(text: str) -> str:
     return _normalize_text(cleaned)
 
 
+def _looks_like_search_followup(text: str) -> bool:
+    lowered = _normalize_text(text).casefold()
+    if not lowered:
+        return False
+    patterns = (
+        "fale mais",
+        "me fale mais",
+        "quero mais detalhes",
+        "quero mais profundidade",
+        "aprofunde",
+        "aprofundar",
+        "detalhe melhor",
+        "explique melhor",
+        "continue nesse assunto",
+        "mais sobre isso",
+        "mais sobre esse assunto",
+        "mais detalhes sobre isso",
+    )
+    return any(pattern in lowered for pattern in patterns)
+
+
+def _build_search_followup_query(
+    text: str,
+    last_search: dict[str, Any] | None,
+) -> str:
+    if not isinstance(last_search, dict):
+        return ""
+    last_result = last_search.get("tool_result")
+    if not isinstance(last_result, dict):
+        last_result = {}
+    base_query = _normalize_text(
+        str(last_result.get("query", "")) or str(last_search.get("prompt_text", ""))
+    )
+    if not base_query:
+        return ""
+
+    current = _normalize_text(text)
+    explicit = re.sub(
+        r"(?i)^(?:me\s+)?(?:fale|explique|detalhe|aprofunde)(?:\s+mais)?(?:\s+sobre)?\s+",
+        "",
+        current,
+    ).strip(" .,:;-")
+    explicit = re.sub(
+        r"(?i)^(?:esse|este|essa|isso|aquilo)\s+(?:assunto|tema)\s*",
+        "",
+        explicit,
+    ).strip(" .,:;-")
+
+    generic_markers = {
+        "isso",
+        "isso aqui",
+        "isso ai",
+        "esse assunto",
+        "este assunto",
+        "esse tema",
+        "este tema",
+        "aquilo",
+        "aquilo la",
+    }
+    if explicit and explicit.casefold() not in generic_markers:
+        return f"{base_query} {explicit} detalhes"
+
+    return f"{base_query} detalhes exemplos contexto"
+
+
 def _summarize_text(text: str) -> str:
     body = _normalize_text(text)
     if not body:
@@ -660,6 +725,40 @@ class NovaOrchestrator:
         except Exception:
             return None
         return data if isinstance(data, dict) else None
+
+    def _last_search_for_user(self, user_id: str) -> dict[str, Any] | None:
+        uid = str(user_id or "").strip() or "default"
+        current = self._last_search_by_user.get(uid)
+        if isinstance(current, dict) and current.get("reply"):
+            return current
+        loaded = self._load_last_search_from_memory(uid)
+        if isinstance(loaded, dict) and loaded.get("reply"):
+            self._last_search_by_user[uid] = loaded
+            return loaded
+        return None
+
+    def _handle_search_followup(
+        self,
+        user_id: str,
+        text: str,
+        *,
+        mode: str = "normal",
+    ) -> dict[str, Any] | None:
+        if not _looks_like_search_followup(text):
+            return None
+        last_search = self._last_search_for_user(user_id)
+        if not isinstance(last_search, dict):
+            return None
+        query = _build_search_followup_query(text, last_search)
+        if not query:
+            return None
+        return self.execute_tool(
+            user_id,
+            "search_web",
+            {"query": query},
+            prompt_text=text,
+            mode=mode,
+        )
 
     def _capture_profile_facts(self, user_id: str, text: str) -> None:
         msg = _normalize_text(text)
@@ -1125,6 +1224,9 @@ class NovaOrchestrator:
         translated_text = self._handle_text_translation(uid, msg, mode=mode)
         if translated_text is not None:
             return translated_text
+        search_followup = self._handle_search_followup(uid, msg, mode=mode)
+        if search_followup is not None:
+            return search_followup
         context = self._build_combined_context(uid, msg)
         response_context = self._build_response_context(uid, base_context=context)
 

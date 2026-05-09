@@ -15,11 +15,11 @@ import 'package:printing/printing.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../models/auth_session.dart';
 import '../services/api_endpoint_config.dart';
 import '../services/attachment_analysis_service.dart';
 import '../services/background_wake_service.dart';
 import '../services/app_security_service.dart';
-import '../services/camera_service.dart';
 import '../services/chat_api.dart';
 import '../services/device_connectivity.dart';
 import '../services/device_calendar_service.dart';
@@ -65,7 +65,14 @@ class _NovaDevLanguageOption {
 }
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({
+    super.key,
+    required this.session,
+    required this.onLogout,
+  });
+
+  final AuthSession session;
+  final VoidCallback onLogout;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -82,7 +89,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     api: _api,
     attachmentAnalysis: _attachmentAnalysis,
   );
-  late final CameraService _cameraService = CameraService();
   late final MemoryService _memoryService = MemoryService(api: _api);
   final LocalDatabaseService _localDb = LocalDatabaseService();
   final DeviceConnectivityService _deviceConnectivity =
@@ -206,6 +212,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   String _resolvedUserName() {
+    if (widget.session.name.trim().isNotEmpty) {
+      return widget.session.name.trim();
+    }
     final preferred = (_config['nome_usuario']?.toString().trim() ?? '');
     if (preferred.isNotEmpty) return preferred;
     for (final user in _users) {
@@ -273,6 +282,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   String _jarvisUserId() {
+    if (widget.session.userId.trim().isNotEmpty) {
+      return widget.session.userId.trim();
+    }
     final named = (_config['nome_usuario']?.toString().trim() ?? '');
     if (named.isNotEmpty) return named;
     return 'frontend';
@@ -728,7 +740,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (normalized.contains('memoria') || normalized.contains('salvar')) {
       return Icons.bookmark_outline_rounded;
     }
-    if (normalized.contains('pesquisa') || normalized.contains('fontes')) {
+    if (normalized.contains('pesquisa') ||
+        normalized.contains('fontes') ||
+        normalized.contains('assunto') ||
+        normalized.contains('exemplos')) {
       return Icons.travel_explore_rounded;
     }
     if (normalized.contains('lembrete') || normalized.contains('agenda')) {
@@ -769,11 +784,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         normalized.contains('salvar na memoria')) {
       return 'Salvar o contexto importante desta conversa na memoria da NOVA.';
     }
-    if (normalized.contains('comparar fontes')) {
-      return 'Compare as fontes e destaque o que realmente importa.';
+    if (normalized.contains('aprofundar assunto')) {
+      return 'Fale mais sobre este assunto com mais contexto, exemplos e detalhes práticos.';
+    }
+    if (normalized.contains('trazer exemplos')) {
+      return 'Traga exemplos práticos e deixe a explicação mais concreta.';
+    }
+    if (normalized.contains('aplicar ao projeto')) {
+      return 'Conecte este assunto ao projeto atual e mostre como aplicar na prática.';
     }
     if (normalized.contains('aprofundar pesquisa')) {
-      return 'Aprofunde a pesquisa e traga uma resposta mais robusta.';
+      return 'Fale mais sobre este assunto com mais contexto, exemplos e detalhes práticos.';
     }
     if (normalized.contains('criar lembrete')) {
       return 'Crie um lembrete com base no que estamos tratando agora.';
@@ -817,7 +838,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return _actionObjectsFromLabels(
       const [
         'Organizar próximo passo',
-        'Comparar fontes',
+        'Aprofundar assunto',
         'Criar lembrete',
       ],
     );
@@ -838,7 +859,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ),
       suggestions: _actionObjectsFromLabels(
         const [
-          'Comparar fontes',
+          'Aprofundar assunto',
           'Salvar na memoria',
           'Criar lembrete',
         ],
@@ -918,7 +939,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ],
       'sugestoes': const [
         'Organizar próximo passo',
-        'Comparar fontes',
+        'Aprofundar assunto',
         'Criar lembrete',
       ],
       'assistant_state': operational.toLowerCase(),
@@ -1035,7 +1056,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ),
       NovaModuleSnapshot(
         title: 'Pesquisa',
-        description: 'Fontes, comparacoes e leitura acelerada.',
+        description: 'Resumo direto, aprofundamento e contexto sem ruído.',
         metric:
             containsAny(['pesquisa', 'fonte', 'resumo']) ? 'quente' : 'pronto',
         icon: Icons.travel_explore_rounded,
@@ -1181,6 +1202,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _config['nome_usuario'] = widget.session.name;
+    _config['email_usuario'] = widget.session.email;
     _chat.add(_buildGreetingLine());
     _initTts();
     _initSpeech();
@@ -1953,41 +1976,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       picked,
       successMessage: 'Arquivo anexado e interpretado pela NOVA.',
     );
-  }
-
-  Future<void> _pickQuickPhoto() async {
-    try {
-      final picked = await _cameraService.capturePhoto();
-      if (picked == null) return;
-      await _prepareAttachment(
-        picked,
-        successMessage: 'Foto capturada e pronta para análise.',
-      );
-    } catch (_) {
-      final result = await FilePicker.platform.pickFiles(
-        allowMultiple: false,
-        type: FileType.image,
-      );
-      if (result == null || result.files.isEmpty) {
-        _showSnack('Não consegui abrir a câmera agora.');
-        return;
-      }
-      final file = result.files.first;
-      if (file.bytes == null && (file.path ?? '').trim().isEmpty) {
-        _showSnack('Não consegui ler a imagem selecionada.');
-        return;
-      }
-      final bytes = file.bytes ?? await File(file.path!).readAsBytes();
-      await _prepareAttachment(
-        NovaAttachment(
-          name: file.name,
-          mimeType: 'image/jpeg',
-          bytes: bytes,
-          localPath: file.path,
-        ),
-        successMessage: 'Imagem adicionada e pronta para análise.',
-      );
-    }
   }
 
   bool _isMusicCommand(String input) {
@@ -3460,34 +3448,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }
     }
 
-    Future<void> capturarFotoParaAnalise(StateSetter setLocalState) async {
-      try {
-        final picked = await _imagePicker.pickImage(
-          source: ImageSource.camera,
-          preferredCameraDevice: CameraDevice.rear,
-          imageQuality: 95,
-        );
-        if (picked == null) return;
-        final bytes = await picked.readAsBytes();
-        setLocalState(() {
-          selectedName = picked.name;
-          selectedBytes = bytes;
-          selectedPath = picked.path;
-          selectedFromCamera = true;
-          error = '';
-          reportText = '';
-          learningText = '';
-          subjectsText = '';
-        });
-        await analisarSelecionado(setLocalState);
-      } catch (e) {
-        setLocalState(() {
-          error =
-              'Não consegui capturar a foto agora: ${e.toString().replaceFirst('Exception: ', '')}';
-        });
-      }
-    }
-
     if (!mounted) return;
     await showDialog<void>(
       context: context,
@@ -3564,13 +3524,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                               : () => selecionarImagemGaleria(setLocalState),
                           icon: const Icon(Icons.image_outlined, size: 16),
                           label: const Text('Imagem'),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: loading
-                              ? null
-                              : () => capturarFotoParaAnalise(setLocalState),
-                          icon: const Icon(Icons.camera_alt_outlined, size: 16),
-                          label: const Text('Tirar foto'),
                         ),
                       ],
                     ),
@@ -3969,7 +3922,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             ),
             suggestions: _actionObjectsFromLabels(
               const [
-                'Comparar fontes',
+                'Aprofundar assunto',
                 'Criar lembrete',
                 'Salvar na memoria',
               ],
@@ -4277,6 +4230,129 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
+  Future<void> _openAccountDialog() async {
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final colors = context.novaColors;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+          child: GlassContainer(
+            borderRadius: 30,
+            blur: 24,
+            opacity: context.isNovaDark ? 0.18 : 0.32,
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const NovaMetalLogo(size: 54),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.session.name,
+                            style: TextStyle(
+                              color: colors.textPrimary,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            widget.session.email,
+                            style: TextStyle(
+                              color: colors.textSecondary,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(
+                      alpha: context.isNovaDark ? 0.06 : 0.42,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: colors.glassBorder),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Sessão ativa',
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: 13.2,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Perfil: ${widget.session.role.toUpperCase()}',
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 12.8,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'A conversa, a memória e os fluxos agora usam sua conta como contexto principal.',
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 12.8,
+                          height: 1.45,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (widget.session.isAdmin)
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        _openUsersDialog();
+                      },
+                      icon: const Icon(Icons.group_outlined),
+                      label: const Text('Gerenciar usuários'),
+                    ),
+                  ),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      widget.onLogout();
+                    },
+                    icon: const Icon(Icons.logout_rounded),
+                    label: const Text('Sair da conta'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _openUsersDialog() async {
     final allowed = await _ensureAdminAccess();
     if (!mounted) return;
@@ -4285,6 +4361,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return;
     }
     final newUserController = TextEditingController();
+    final newEmailController = TextEditingController();
+    final newPasswordController = TextEditingController();
 
     await showDialog<void>(
       context: context,
@@ -4293,12 +4371,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           builder: (context, setLocalState) {
             Future<void> addUser() async {
               final name = newUserController.text.trim();
+              final email = newEmailController.text.trim();
+              final password = newPasswordController.text.trim();
               if (name.isEmpty) return;
               try {
-                final users = await _api.addUser(name);
+                final users = await _api.addUser(
+                  name,
+                  email: email,
+                  password: password,
+                );
                 if (!mounted) return;
                 setState(() => _users = users);
                 newUserController.clear();
+                newEmailController.clear();
+                newPasswordController.clear();
                 setLocalState(() {});
                 await _saveLocalState();
               } catch (_) {
@@ -4342,19 +4428,31 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
+                    Column(
                       children: [
-                        Expanded(
-                          child: NovaInput(
-                            controller: newUserController,
-                            hintText: 'Nome do novo usuário...',
-                          ),
+                        NovaInput(
+                          controller: newUserController,
+                          hintText: 'Nome do novo usuário...',
                         ),
-                        const SizedBox(width: 10),
-                        FilledButton.icon(
-                          onPressed: addUser,
-                          icon: const Icon(Icons.add),
-                          label: const Text('Adicionar'),
+                        const SizedBox(height: 10),
+                        NovaInput(
+                          controller: newEmailController,
+                          hintText: 'Email do usuário...',
+                        ),
+                        const SizedBox(height: 10),
+                        NovaInput(
+                          controller: newPasswordController,
+                          hintText: 'Senha inicial (opcional)',
+                          obscureText: true,
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: addUser,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Adicionar usuário'),
+                          ),
                         ),
                       ],
                     ),
@@ -4423,7 +4521,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                           ),
                                         ),
                                         Text(
-                                          '${user['papel'] ?? 'usuario'} · desde ${user['desde'] ?? '-'}',
+                                          [
+                                            user['email']?.toString().trim() ??
+                                                '',
+                                            '${user['papel'] ?? 'usuario'} · desde ${user['desde'] ?? '-'}',
+                                          ]
+                                              .where((item) => item.isNotEmpty)
+                                              .join(' · '),
                                           style: const TextStyle(
                                               color: Color(0xFF5F8AA8),
                                               fontSize: 12),
@@ -4462,6 +4566,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
 
     newUserController.dispose();
+    newEmailController.dispose();
+    newPasswordController.dispose();
   }
 
   Future<void> _openConfigDialog() async {
@@ -5689,7 +5795,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
     if (normalized.contains('pesquisa')) {
       await _executeCommand(
-        'Nova, pesquise na web e compare as melhores referências para o contexto atual.',
+        'Nova, pesquise na web sobre o contexto atual e me entregue um resumo direto, natural e objetivo.',
         fromVoice: false,
       );
       return;
@@ -6372,10 +6478,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       children: [
         NovaTopBar(
           onMenuTap: _openQuickMenu,
-          onUserTap: _openUsersDialog,
-          onCameraTap: _pickQuickPhoto,
+          onUserTap: _openAccountDialog,
           contextText: _conversationContextLabel(),
           status: _assistantState,
+          userLabel: widget.session.name,
         ),
         SizedBox(height: topGap),
         Expanded(

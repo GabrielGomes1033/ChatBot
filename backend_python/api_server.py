@@ -102,10 +102,13 @@ from core.memoria import (
 )
 from core.painel_admin import (
     adicionar_usuario,
+    autenticar_usuario,
     atualizar_config_painel,
     atualizar_usuario,
     carregar_config_painel,
     listar_usuarios,
+    obter_usuario,
+    registrar_usuario_publico,
     remover_usuario,
 )
 from core.respostas import (
@@ -220,6 +223,17 @@ API_TTS_SERVIDOR_ATIVO = os.getenv("NOVA_API_SERVER_TTS", "0").strip().lower() i
 
 OPTIONAL_RUNTIME_ERRORS = (OSError, RuntimeError, TypeError, ValueError)
 INPUT_PARSE_ERRORS = (TypeError, ValueError)
+
+
+def _build_auth_session_payload(user: dict) -> dict:
+    return {
+        "user_id": str(user.get("id", "")).strip(),
+        "name": str(user.get("nome", "")).strip(),
+        "email": str(user.get("email", "")).strip().lower(),
+        "role": str(user.get("papel", "usuario")).strip().lower() or "usuario",
+        "created_at": str(user.get("criado_em", "")).strip(),
+        "last_login_at": str(user.get("ultimo_login_em", "")).strip(),
+    }
 
 
 def _log_warning(evento: str, exc: BaseException, **fields) -> None:
@@ -1521,6 +1535,9 @@ class NovaHandler(BaseHTTPRequestHandler):
                     "service": "nova-api",
                     "endpoints": [
                         "/health",
+                        "/auth/register",
+                        "/auth/login",
+                        "/auth/profile",
                         "/chat",
                         "/jarvis/status",
                         "/actions/tools",
@@ -1539,6 +1556,23 @@ class NovaHandler(BaseHTTPRequestHandler):
             return
         if path == "/health":
             self._send_json(build_api_health(entrypoint="api_server"))
+            return
+        if path == "/auth/profile":
+            user_id = str(query.get("user_id", [""])[0] or "").strip()
+            user = obter_usuario(user_id)
+            if not user or not bool(user.get("ativo", True)):
+                self._send_json(
+                    {"ok": False, "error": "user_not_found"},
+                    status=HTTPStatus.NOT_FOUND,
+                )
+                return
+            self._send_json(
+                {
+                    "ok": True,
+                    "session": _build_auth_session_payload(user),
+                    "user": user,
+                }
+            )
             return
         if path == "/jarvis/status":
             self._send_json(jarvis_status_snapshot())
@@ -1874,6 +1908,53 @@ class NovaHandler(BaseHTTPRequestHandler):
         ):
             return
 
+        if path == "/auth/register":
+            nome = str(body.get("name", body.get("nome", ""))).strip()
+            email = str(body.get("email", "")).strip()
+            senha = str(body.get("password", body.get("senha", ""))).strip()
+            try:
+                user = registrar_usuario_publico(nome=nome, email=email, senha=senha)
+            except ValueError as exc:
+                self._send_json(
+                    {"ok": False, "error": str(exc)},
+                    status=HTTPStatus.BAD_REQUEST,
+                )
+                return
+            self._send_json(
+                {
+                    "ok": True,
+                    "session": _build_auth_session_payload(user),
+                    "user": user,
+                }
+            )
+            return
+
+        if path == "/auth/login":
+            email = str(body.get("email", "")).strip()
+            senha = str(body.get("password", body.get("senha", ""))).strip()
+            try:
+                user = autenticar_usuario(email=email, senha=senha)
+            except ValueError as exc:
+                self._send_json(
+                    {"ok": False, "error": str(exc)},
+                    status=HTTPStatus.BAD_REQUEST,
+                )
+                return
+            if not user:
+                self._send_json(
+                    {"ok": False, "error": "invalid_credentials"},
+                    status=HTTPStatus.UNAUTHORIZED,
+                )
+                return
+            self._send_json(
+                {
+                    "ok": True,
+                    "session": _build_auth_session_payload(user),
+                    "user": user,
+                }
+            )
+            return
+
         if path == "/backup/restore":
             backup = body.get("backup", {})
             memory = backup.get("memory", {}) if isinstance(backup, dict) else {}
@@ -2169,8 +2250,10 @@ class NovaHandler(BaseHTTPRequestHandler):
         if path == "/admin/users":
             nome = str(body.get("nome", "")).strip()
             papel = str(body.get("papel", "usuario")).strip() or "usuario"
+            email = str(body.get("email", "")).strip()
+            senha = str(body.get("senha", body.get("password", ""))).strip()
             try:
-                user = adicionar_usuario(nome, papel=papel)
+                user = adicionar_usuario(nome, papel=papel, email=email, senha=senha)
             except ValueError as exc:
                 self._send_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
                 return
@@ -2388,12 +2471,21 @@ class NovaHandler(BaseHTTPRequestHandler):
 
         if path.startswith("/admin/users/"):
             user_id = path.split("/")[-1]
-            user = atualizar_usuario(
-                user_id=user_id,
-                nome=body.get("nome"),
-                papel=body.get("papel"),
-                ativo=_bool_ou_none(body.get("ativo")),
-            )
+            try:
+                user = atualizar_usuario(
+                    user_id=user_id,
+                    nome=body.get("nome"),
+                    papel=body.get("papel"),
+                    ativo=_bool_ou_none(body.get("ativo")),
+                    email=body.get("email"),
+                    senha=body.get("senha", body.get("password")),
+                )
+            except ValueError as exc:
+                self._send_json(
+                    {"ok": False, "error": str(exc)},
+                    status=HTTPStatus.BAD_REQUEST,
+                )
+                return
             if not user:
                 self._send_json(
                     {"ok": False, "error": "user_not_found"}, status=HTTPStatus.NOT_FOUND

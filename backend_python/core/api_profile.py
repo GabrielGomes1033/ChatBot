@@ -5,7 +5,7 @@ from typing import Any
 
 from core.api_config import build_local_base_url
 
-NOVA_API_VERSION = "2.3.0"
+NOVA_API_VERSION = "2.4.0"
 
 
 def _agora() -> str:
@@ -54,6 +54,8 @@ def build_api_health(*, entrypoint: str) -> dict[str, Any]:
         },
         "endpoints": [
             "/health",
+            "/auth/register",
+            "/auth/login",
             "/chat",
             "/jarvis/status",
             "/actions/tools",

@@ -191,6 +191,53 @@ class SearchTranslationTests(unittest.TestCase):
             self.assertEqual(resposta["reply"], "Electric cars reduce emissions.")
             memory.close()
 
+    def test_followup_can_deepen_last_search_naturally(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            memory = MemoryStore(Path(tmpdir) / "nova_memory_test.db")
+            orchestrator = NovaOrchestrator(
+                memory=memory,
+                tools=build_default_tools(memory),
+                llm=RuleBasedLLM(),
+            )
+
+            with patch(
+                "core.orchestrator.integration_search_web",
+                side_effect=[
+                    {
+                        "ok": True,
+                        "query": "energia nuclear",
+                        "summary": "Energia nuclear gera eletricidade a partir da fissão e exige controle rigoroso de segurança.",
+                        "sources": ["https://example.com/nuclear"],
+                    },
+                    {
+                        "ok": True,
+                        "query": "energia nuclear detalhes exemplos contexto",
+                        "summary": "Os principais pontos de aprofundamento envolvem custo inicial alto, baixa emissão operacional e gestão de rejeitos.",
+                        "results": [
+                            {
+                                "title": "Usinas nucleares",
+                                "snippet": "Projetos nucleares costumam exigir investimento alto e planejamento de longo prazo.",
+                                "url": "https://example.com/nuclear-details",
+                            }
+                        ],
+                        "sources": ["https://example.com/nuclear-details"],
+                    },
+                ],
+            ) as mocked_search:
+                orchestrator.handle(
+                    "tester",
+                    "pesquise sobre energia nuclear",
+                )
+                aprofundamento = orchestrator.handle(
+                    "tester",
+                    "fale mais sobre esse assunto",
+                )
+
+            self.assertIn("custo inicial alto", aprofundamento["reply"])
+            self.assertIn("investimento alto", aprofundamento["reply"])
+            self.assertEqual(mocked_search.call_count, 2)
+            memory.close()
+
     def test_translate_last_search_without_previous_search_returns_guidance(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             memory = MemoryStore(Path(tmpdir) / "nova_memory_test.db")

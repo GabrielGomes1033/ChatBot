@@ -165,9 +165,9 @@ def _infer_actions(
         ]
     if tool_name == "search_web":
         return [
-            "Comparar fontes",
-            "Transformar em plano",
-            "Salvar na memoria",
+            "Aprofundar assunto",
+            "Trazer exemplos",
+            "Aplicar ao projeto",
         ]
     if "codigo" in text or "flutter" in text or "interface" in text or "projeto" in text:
         return [
@@ -177,9 +177,9 @@ def _infer_actions(
         ]
     if "pesquisa" in text or "pesquise" in text or "resuma" in text:
         return [
-            "Aprofundar pesquisa",
+            "Aprofundar assunto",
             "Extrair pontos-chave",
-            "Salvar resumo",
+            "Aplicar ao projeto",
         ]
     if "agenda" in text or "reuniao" in text or "calendario" in text:
         return [
@@ -214,7 +214,7 @@ def _infer_suggestions(
     if tool_name == "search_web":
         suggestions.extend(
             [
-                "Montar briefing",
+                "Aprofundar assunto",
                 "Gerar checklist",
                 "Traduzir resultado",
             ]
@@ -238,9 +238,9 @@ def _infer_suggestions(
     if _contains_any(text, ("pesquisa", "pesquise", "pesquisar", "resuma", "explicar")):
         suggestions.extend(
             [
-                "Aprofundar pesquisa",
-                "Comparar opcoes",
-                "Salvar referencia",
+                "Aprofundar assunto",
+                "Trazer exemplos",
+                "Aplicar ao projeto",
             ]
         )
     if not suggestions:

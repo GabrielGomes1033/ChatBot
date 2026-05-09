@@ -7,7 +7,6 @@ import requests
 
 from core.assistente_plus import _limpar_resumo_para_chat
 from core.assistente_plus import pesquisar_na_internet
-from core.kira_client import pesquisar_kira
 from core.pesquisa import gerar_pesquisa_wikipedia
 from core.pesquisa import buscar_opcoes_desambiguacao
 
@@ -81,33 +80,8 @@ def search_web(query: str) -> dict[str, Any]:
             "sources": [],
         }
 
-    kira_result = pesquisar_kira(consulta)
-    warnings: list[str] = []
-    if kira_result.get("ok"):
-        summary = str(kira_result.get("summary", "")).strip()
-        wiki = None
-        if not any(
-            token in consulta.lower()
-            for token in ("hoje", "agora", "ultimas", "últimas", "recentes", "breaking")
-        ):
-            wiki = _best_wikipedia_summary(consulta)
-        if wiki and (_summary_looks_noisy(summary) or len(consulta.split()) <= 4):
-            summary = str(wiki.get("resumo", "")).strip() or summary
-        summary = _limpar_resumo_para_chat(summary)
-        return {
-            "ok": True,
-            "provider": "kira",
-            "query": consulta,
-            "summary": summary,
-            "results": kira_result.get("results") or [],
-            "sources": [],
-            "raw_response": str(kira_result.get("raw_response", "")).strip(),
-            "latency_ms": kira_result.get("latency_ms"),
-        }
-    if kira_result.get("error"):
-        warnings.append(str(kira_result.get("error")))
-
     api_key = os.getenv("BRAVE_API_KEY") or os.getenv("NOVA_BRAVE_API_KEY")
+    warnings: list[str] = []
     if api_key:
         try:
             response = requests.get(

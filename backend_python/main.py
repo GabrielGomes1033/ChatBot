@@ -5,13 +5,6 @@ import sys
 from urllib.parse import quote_plus
 import webbrowser
 
-try:
-    from core.kira_api import consultar_kira
-except (ImportError, AttributeError):
-
-    def consultar_kira(pergunta: str):
-        return None
-
 
 # =========================
 # SOCIALIZAÇÃO / EVOLUÇÃO IA
@@ -53,6 +46,37 @@ def registrar_erro(exc):
 
 def _log_warning(evento: str, exc: BaseException, **fields) -> None:
     logger.warning(evento, error=str(exc), **fields)
+
+
+def consultar_pesquisa_externa(pergunta: str) -> str | None:
+    consulta = str(pergunta or "").strip()
+    if not consulta:
+        return None
+
+    try:
+        wiki = gerar_pesquisa_wikipedia(consulta[:250])
+        if wiki:
+            titulo = str(wiki.get("titulo", "") or "").strip()
+            resumo = str(wiki.get("resumo", "") or "").strip()
+            if resumo:
+                return f"{titulo}\n\n{resumo}".strip()
+    except Exception as exc:
+        _log_warning("pesquisa_externa_wikipedia_fail", exc)
+
+    try:
+        resposta = responder(
+            (
+                "Responda em português do Brasil, de forma natural, objetiva e sem citar links. "
+                f"Explique este assunto com clareza: {consulta}"
+            ),
+            contexto=contexto,
+        )
+        if resposta and resposta.strip() and "modo básico" not in resposta.lower():
+            return resposta.strip()
+    except Exception as exc:
+        _log_warning("pesquisa_externa_responder_fail", exc)
+
+    return None
 
 
 # =========================
@@ -303,7 +327,7 @@ contexto = {
 
 
 # =========================
-# AGENTES NOVA + KIRA + SOCIALIZAÇÃO
+# AGENTES NOVA + PESQUISA + SOCIALIZAÇÃO
 # =========================
 MEMORIA_SOCIAL = BASE_DIR / "memoria" / "aprendizado_social.json"
 
@@ -323,7 +347,7 @@ class NovaAgent:
             "Reescreva a resposta abaixo em português do Brasil, com linguagem humana, objetiva, "
             "bem explicada e fácil de entender. Mantenha a precisão técnica.\n\n"
             f"Tema: {tema}\n\n"
-            f"Resposta técnica da KIRA:\n{resposta_tecnica}"
+            f"Resposta de pesquisa:\n{resposta_tecnica}"
         )
         try:
             texto = responder(prompt, contexto=contexto)
@@ -340,8 +364,8 @@ class NovaAgent:
         )
 
 
-class KiraAgent:
-    """Adaptador simples para a KIRA pesquisar, analisar e revisar respostas."""
+class ResearchAgent:
+    """Adaptador simples para aprofundar respostas com pesquisa e revisão."""
 
     def responder(self, texto: str) -> str:
         consulta = texto.strip()
@@ -353,17 +377,17 @@ class KiraAgent:
                 if resumo:
                     return f"{titulo}\n\n{resumo}"
         except Exception as exc:
-            _log_warning("kira_agent_wikipedia_fail", exc)
+            _log_warning("research_agent_wikipedia_fail", exc)
 
         try:
             resposta = responder(consulta, contexto=contexto)
             if resposta and resposta.strip() and resposta.strip() != "Ainda estou em modo básico.":
                 return resposta
         except Exception as exc:
-            _log_warning("kira_agent_responder_fail", exc)
+            _log_warning("research_agent_responder_fail", exc)
 
         return (
-            "Análise KIRA:\n"
+            "Análise de pesquisa:\n"
             f"Tema solicitado: {consulta}\n\n"
             "1. Conceito central: identificar a ideia principal do tema.\n"
             "2. Explicação técnica: separar definição, funcionamento, aplicações e limites.\n"
@@ -373,9 +397,9 @@ class KiraAgent:
 
 
 class SocializacaoIA:
-    def __init__(self, nova_agent, kira_agent):
+    def __init__(self, nova_agent, research_agent):
         self.nova = nova_agent
-        self.kira = kira_agent
+        self.research = research_agent
         self.temas = [
             "inteligência artificial",
             "física quântica",
@@ -448,18 +472,24 @@ class SocializacaoIA:
         tema = str(tema).strip()
         mensagens = []
         fala_nova = (
-            f"KIRA, vamos socializar sobre {tema}. "
+            f"Núcleo de pesquisa, vamos aprofundar {tema}. "
             "Traga uma visão técnica, objetiva e útil para melhorarmos nossas futuras respostas."
         )
         for rodada in range(max(1, int(rodadas))):
-            resposta_kira = self.kira.responder(fala_nova)
-            mensagens.append({"agente": "KIRA", "rodada": rodada + 1, "mensagem": resposta_kira})
+            resposta_pesquisa = self.research.responder(fala_nova)
+            mensagens.append(
+                {
+                    "agente": "PESQUISA",
+                    "rodada": rodada + 1,
+                    "mensagem": resposta_pesquisa,
+                }
+            )
 
-            resposta_nova = self.nova.humanizar_resposta(tema, resposta_kira)
+            resposta_nova = self.nova.humanizar_resposta(tema, resposta_pesquisa)
             mensagens.append({"agente": "NOVA", "rodada": rodada + 1, "mensagem": resposta_nova})
 
             fala_nova = (
-                "KIRA, avalie a resposta da NOVA abaixo. Diga como melhorar clareza, precisão, "
+                "Núcleo de pesquisa, avalie a resposta da NOVA abaixo. Diga como melhorar clareza, precisão, "
                 f"profundidade e objetividade.\n\n{resposta_nova}"
             )
 
@@ -474,11 +504,11 @@ class SocializacaoIA:
         )
         prompt = (
             f"Com base nesta conversa sobre {tema}, gere uma regra curta de melhoria para futuras respostas. "
-            "A regra deve ajudar a NOVA a responder melhor e a KIRA a pesquisar melhor.\n\n"
+            "A regra deve ajudar a NOVA a responder melhor e o núcleo de pesquisa a aprofundar melhor.\n\n"
             f"{conversa_curta}"
         )
         try:
-            resumo = self.kira.responder(prompt)
+            resumo = self.research.responder(prompt)
             if resumo and resumo.strip():
                 return resumo.strip()
         except Exception as exc:
@@ -491,12 +521,12 @@ class SocializacaoIA:
 
 try:
     nova_agent = NovaAgent()
-    kira_agent = KiraAgent()
-    social_agent = SocializacaoIA(nova_agent, kira_agent)
+    research_agent = ResearchAgent()
+    social_agent = SocializacaoIA(nova_agent, research_agent)
 except Exception as exc:
     registrar_erro(exc)
     nova_agent = None
-    kira_agent = None
+    research_agent = None
     social_agent = None
 
 
@@ -506,7 +536,7 @@ def executar_socializacao(tema=None, rodadas=3, mostrar_conversa=True, origem="m
         return None
     resultado = social_agent.socializar(tema=tema, rodadas=rodadas, origem=origem)
     if mostrar_conversa:
-        print("\n🤖 === CONVERSA NOVA ↔ KIRA ===\n")
+        print("\n🤖 === CONVERSA NOVA ↔ PESQUISA ===\n")
         for msg in resultado.get("conversa", []):
             print(f"{msg['agente']}: {msg['mensagem']}\n")
     print("🧠 === APRENDIZADO GERADO ===\n")
@@ -532,7 +562,7 @@ def comando_evolucao(texto):
     if acao in ("on", "ligar", "ativar"):
         contexto["evolucao_automatica"] = True
         print(
-            "NOVA: Evolução automática ativada. Vou socializar com a KIRA a cada ciclo de aprendizado."
+            "NOVA: Evolução automática ativada. Vou socializar com o núcleo de pesquisa a cada ciclo de aprendizado."
         )
         return
 
@@ -589,7 +619,7 @@ def evolucao_automatica_pos_resposta(entrada_usuario, resposta_nova):
 
     tema = " | ".join(contexto.get("ultimos_temas", [])[-3:]) or entrada_usuario
     try:
-        print("\nNOVA: Evolução automática iniciada entre NOVA e KIRA...")
+        print("\nNOVA: Evolução automática iniciada entre NOVA e o núcleo de pesquisa...")
         resultado = executar_socializacao(
             tema=tema,
             rodadas=2,
@@ -981,16 +1011,19 @@ def main():
         intencao = detectar_intencao(user, contexto)
         contexto["ultima_intencao"] = intencao
 
-        # Comando direto para consultar a KIRA:
-        # Exemplo: kira O que é inteligência artificial?
-        if user.lower().startswith("kira "):
-            pergunta_kira = user[5:].strip()
-            resposta = consultar_kira(pergunta_kira) or "Não consegui consultar a KIRA agora."
+        # Comando direto para pesquisa externa:
+        # Exemplo: pesquisar O que é inteligência artificial?
+        if user.lower().startswith("pesquisar "):
+            pergunta_pesquisa = user[10:].strip()
+            resposta = (
+                consultar_pesquisa_externa(pergunta_pesquisa)
+                or "Não consegui aprofundar essa pesquisa agora."
+            )
         else:
             # Primeiro tenta responder localmente
             resposta = responder(user, contexto=contexto)
 
-            # Se a resposta local for fraca, chama a KIRA no Render
+            # Se a resposta local for fraca, tenta aprofundar com pesquisa externa
             resposta_fraca = (
                 not resposta
                 or "modo básico" in resposta.lower()
@@ -999,10 +1032,10 @@ def main():
             )
 
             if resposta_fraca:
-                resposta_kira = consultar_kira(user)
+                resposta_pesquisa = consultar_pesquisa_externa(user)
 
-                if resposta_kira:
-                    resposta = resposta_kira
+                if resposta_pesquisa:
+                    resposta = resposta_pesquisa
 
         print("NOVA:", resposta)
         registrar_interacao_usuario(user, resposta)

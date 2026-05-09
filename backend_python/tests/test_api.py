@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -14,6 +15,8 @@ from fastapi.testclient import TestClient
 
 from api.app import create_app
 from core import runtime_guard
+import core.admin as admin_module
+import core.painel_admin as painel_admin_module
 from routes import chat_routes
 
 
@@ -118,6 +121,48 @@ class ApiSmokeTests(unittest.TestCase):
             language="flutter",
             project_name="login_nova",
         )
+
+    def test_auth_register_and_login_expose_consumer_flow(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base = Path(tmpdir)
+            users_file = base / "usuarios_admin.json"
+            admin_file = base / "admin_config.json"
+            crypto_file = base / ".nova_crypto.key"
+
+            with patch.object(painel_admin_module, "ARQUIVO_USUARIOS", users_file), patch.object(
+                admin_module,
+                "ARQUIVO_ADMIN",
+                admin_file,
+            ), patch(
+                "core.seguranca.ARQUIVO_CHAVE_CRIPTO",
+                crypto_file,
+            ):
+                with TestClient(create_app()) as client:
+                    register = client.post(
+                        "/auth/register",
+                        json={
+                            "name": "Gabriel",
+                            "email": "gabriel@example.com",
+                            "password": "nova12345",
+                        },
+                    )
+                    self.assertEqual(register.status_code, 200)
+                    register_payload = register.json()
+                    self.assertTrue(register_payload["ok"])
+                    self.assertEqual(register_payload["session"]["email"], "gabriel@example.com")
+
+                    login = client.post(
+                        "/auth/login",
+                        json={
+                            "email": "gabriel@example.com",
+                            "password": "nova12345",
+                        },
+                    )
+                    self.assertEqual(login.status_code, 200)
+                    login_payload = login.json()
+                    self.assertTrue(login_payload["ok"])
+                    self.assertEqual(login_payload["session"]["name"], "Gabriel")
+                    self.assertTrue(login_payload["session"]["user_id"])
 
 
 if __name__ == "__main__":

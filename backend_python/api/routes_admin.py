@@ -64,15 +64,20 @@ if APIRouter is not None:
     def add_user(body: dict):
         nome = body.get("nome", "")
         papel = body.get("papel", "usuario")
+        email = body.get("email", "")
+        senha = body.get("senha", "")
         try:
-            user = adicionar_usuario(nome, papel=papel)
+            user = adicionar_usuario(nome, papel=papel, email=email, senha=senha)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         return {"ok": True, "user": user, "users": listar_usuarios()}
 
     @router.put("/users/{user_id}")
     def update_user(user_id: str, body: dict):
-        user = atualizar_usuario(user_id=user_id, **body)
+        try:
+            user = atualizar_usuario(user_id=user_id, **body)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
         if not user:
             raise HTTPException(status_code=404, detail="user_not_found")
         return {"ok": True, "user": user, "users": listar_usuarios()}

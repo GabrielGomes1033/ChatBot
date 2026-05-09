@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import '../models/auth_session.dart';
 import 'api_endpoint_config.dart';
 
 typedef ApiHttpExecutor = Future<http.Response> Function(
@@ -177,6 +178,9 @@ class ChatApiService {
     required int statusCode,
     required String body,
   }) {
+    if (path.startsWith('/auth/') && statusCode == 401) {
+      return 'Email ou senha inválidos.';
+    }
     if (statusCode == 404 &&
         (path.startsWith('/autonomy') ||
             path.startsWith('/jarvis') ||
@@ -388,7 +392,8 @@ class ChatApiService {
     }
 
     if (lastError != null) throw lastError;
-    throw Exception('Nenhuma rota de saúde respondeu para ${candidate.baseUrl}.');
+    throw Exception(
+        'Nenhuma rota de saúde respondeu para ${candidate.baseUrl}.');
   }
 
   Future<Map<String, dynamic>> discoverBackend({
@@ -433,6 +438,58 @@ class ChatApiService {
 
   Future<Map<String, dynamic>> getHealthProfile() {
     return _requestJson('GET', '/health');
+  }
+
+  Future<AuthSession> registerUser({
+    required String name,
+    required String email,
+    required String password,
+  }) async {
+    final payload = await _requestJson(
+      'POST',
+      '/auth/register',
+      body: {
+        'name': name.trim(),
+        'email': email.trim(),
+        'password': password,
+      },
+    );
+    final session = payload['session'];
+    if (session is! Map) {
+      throw Exception('Sessão inválida recebida no cadastro.');
+    }
+    return AuthSession.fromJson(Map<String, dynamic>.from(session));
+  }
+
+  Future<AuthSession> loginUser({
+    required String email,
+    required String password,
+  }) async {
+    final payload = await _requestJson(
+      'POST',
+      '/auth/login',
+      body: {
+        'email': email.trim(),
+        'password': password,
+      },
+    );
+    final session = payload['session'];
+    if (session is! Map) {
+      throw Exception('Sessão inválida recebida no login.');
+    }
+    return AuthSession.fromJson(Map<String, dynamic>.from(session));
+  }
+
+  Future<AuthSession> fetchUserProfile(String userId) async {
+    final payload = await _requestJson(
+      'GET',
+      '/auth/profile?user_id=${Uri.encodeComponent(userId.trim())}',
+    );
+    final session = payload['session'];
+    if (session is! Map) {
+      throw Exception('Sessão inválida recebida no perfil.');
+    }
+    return AuthSession.fromJson(Map<String, dynamic>.from(session));
   }
 
   Future<Map<String, dynamic>> sendJarvisMessage(
@@ -614,11 +671,20 @@ class ChatApiService {
         .toList();
   }
 
-  Future<List<Map<String, dynamic>>> addUser(String name) async {
+  Future<List<Map<String, dynamic>>> addUser(
+    String name, {
+    String email = '',
+    String password = '',
+  }) async {
     final payload = await _requestJson(
       'POST',
       '/admin/users',
-      body: {'nome': name, 'papel': 'usuario'},
+      body: {
+        'nome': name,
+        'papel': 'usuario',
+        if (email.trim().isNotEmpty) 'email': email.trim(),
+        if (password.trim().isNotEmpty) 'senha': password.trim(),
+      },
     );
     final users = payload['users'];
     if (users is! List) return [];
@@ -1211,32 +1277,6 @@ class ChatApiService {
         'labels': labels,
         'metadata': metadata,
         'from_camera': fromCamera,
-      },
-    );
-  }
-
-  Future<Map<String, dynamic>> analyzeCameraCapture({
-    required String fileName,
-    required Uint8List bytes,
-    String mimeType = 'image/jpeg',
-    String question = '',
-    String context = '',
-    String recognizedText = '',
-    List<Map<String, dynamic>> labels = const [],
-    Map<String, dynamic> metadata = const {},
-  }) {
-    return _requestJson(
-      'POST',
-      '/camera/analyze',
-      body: {
-        'filename': fileName,
-        'content_base64': base64Encode(bytes),
-        'mime_type': mimeType,
-        'question': question,
-        'context': context,
-        'recognized_text': recognizedText,
-        'labels': labels,
-        'metadata': metadata,
       },
     );
   }

@@ -393,35 +393,3 @@ if APIRouter is not None:
 
 else:
     router = None
-
-
-camera_router = None
-if APIRouter is not None:
-    camera_router = APIRouter(
-        prefix="/camera",
-        tags=["camera"],
-        dependencies=[Depends(rate_limit(120)), Depends(require_token())],
-    )
-
-    @camera_router.post("/analyze")
-    def camera_analyze(body: dict):
-        upload_payload = create_uploaded_file(
-            filename=str(body.get("filename", "camera.jpg")).strip() or "camera.jpg",
-            content_base64=str(body.get("content_base64", "")).strip(),
-            mime_type=str(body.get("mime_type", "image/jpeg")).strip() or "image/jpeg",
-            source="camera",
-        )
-        if not upload_payload.get("ok"):
-            return _json(upload_payload, status_code=400)
-
-        analysis_payload = analyze_uploaded_file(
-            file_id=str(upload_payload.get("file_id", "")).strip(),
-            question=str(body.get("question", "")).strip(),
-            context=str(body.get("context", "")).strip(),
-            recognized_text=str(body.get("recognized_text", "")).strip(),
-            labels=body.get("labels") if isinstance(body.get("labels"), list) else [],
-            metadata=body.get("metadata") if isinstance(body.get("metadata"), dict) else {},
-            from_camera=True,
-        )
-        status_code = 200 if analysis_payload.get("ok") else 400
-        return _json(analysis_payload, status_code=status_code)

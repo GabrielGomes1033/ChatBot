@@ -3,11 +3,12 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 import os
+import re
 import uuid
 
 from core.admin import carregar_config_admin
 from core.caminhos import pasta_dados_app
-from core.seguranca import carregar_json_seguro, salvar_json_seguro
+from core.seguranca import carregar_json_seguro, gerar_hash_senha, salvar_json_seguro, verificar_hash_senha
 
 
 ARQUIVO_USUARIOS = pasta_dados_app() / "usuarios_admin.json"
@@ -27,14 +28,49 @@ def _usuario_padrao() -> dict:
     return {
         "id": _id_curto(),
         "nome": admin_user.title(),
+        "email": str(os.getenv("NOVA_ADMIN_EMAIL", "")).strip().lower(),
         "papel": "admin",
         "ativo": True,
         "desde": datetime.now().year,
         "criado_em": _agora(),
+        "atualizado_em": _agora(),
+        "ultimo_login_em": "",
+        "senha_hash": None,
     }
 
 
-def listar_usuarios() -> list[dict]:
+def _normalizar_email(email: str) -> str:
+    normalized = str(email or "").strip().lower()
+    if not normalized:
+        return ""
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", normalized):
+        raise ValueError("Email inválido.")
+    return normalized
+
+
+def _normalizar_papel(papel: str) -> str:
+    normalized = str(papel or "usuario").strip().lower() or "usuario"
+    if normalized == "user":
+        normalized = "usuario"
+    return normalized
+
+
+def _usuario_publico(user: dict) -> dict:
+    return {
+        "id": str(user.get("id", "")).strip() or _id_curto(),
+        "nome": str(user.get("nome", "")).strip(),
+        "email": str(user.get("email", "")).strip().lower(),
+        "papel": _normalizar_papel(str(user.get("papel", "usuario"))),
+        "ativo": bool(user.get("ativo", True)),
+        "desde": int(user.get("desde", datetime.now().year)),
+        "criado_em": str(user.get("criado_em", "")).strip() or _agora(),
+        "atualizado_em": str(user.get("atualizado_em", "")).strip() or _agora(),
+        "ultimo_login_em": str(user.get("ultimo_login_em", "")).strip(),
+        "has_password": bool(user.get("senha_hash")),
+    }
+
+
+def _carregar_usuarios_brutos() -> list[dict]:
     if not Path(ARQUIVO_USUARIOS).is_file():
         usuarios = [_usuario_padrao()]
         salvar_json_seguro(ARQUIVO_USUARIOS, usuarios)
@@ -52,14 +88,21 @@ def listar_usuarios() -> list[dict]:
         nome = str(item.get("nome", "")).strip()
         if not nome:
             continue
+        senha_hash = item.get("senha_hash")
+        if not isinstance(senha_hash, dict):
+            senha_hash = None
         usuarios.append(
             {
                 "id": str(item.get("id", "")).strip() or _id_curto(),
                 "nome": nome,
-                "papel": str(item.get("papel", "usuario") or "usuario"),
+                "email": str(item.get("email", "")).strip().lower(),
+                "papel": _normalizar_papel(str(item.get("papel", "usuario") or "usuario")),
                 "ativo": bool(item.get("ativo", True)),
                 "desde": int(item.get("desde", datetime.now().year)),
                 "criado_em": str(item.get("criado_em", "")).strip() or _agora(),
+                "atualizado_em": str(item.get("atualizado_em", "")).strip() or _agora(),
+                "ultimo_login_em": str(item.get("ultimo_login_em", "")).strip(),
+                "senha_hash": senha_hash,
             }
         )
 
@@ -74,50 +117,151 @@ def _salvar_usuarios(usuarios: list[dict]) -> None:
     salvar_json_seguro(ARQUIVO_USUARIOS, usuarios)
 
 
-def adicionar_usuario(nome: str, papel: str = "usuario") -> dict:
+def listar_usuarios() -> list[dict]:
+    return [_usuario_publico(user) for user in _carregar_usuarios_brutos()]
+
+
+def _buscar_usuario_bruto_por_email(email: str) -> dict | None:
+    email_normalizado = _normalizar_email(email)
+    if not email_normalizado:
+        return None
+    for user in _carregar_usuarios_brutos():
+        if str(user.get("email", "")).strip().lower() == email_normalizado:
+            return user
+    return None
+
+
+def obter_usuario(user_id: str) -> dict | None:
+    uid = str(user_id or "").strip()
+    if not uid:
+        return None
+    for user in _carregar_usuarios_brutos():
+        if str(user.get("id", "")).strip() == uid:
+            return _usuario_publico(user)
+    return None
+
+
+def adicionar_usuario(
+    nome: str,
+    papel: str = "usuario",
+    *,
+    email: str = "",
+    senha: str = "",
+) -> dict:
     nome = (nome or "").strip()
     if len(nome) < 2:
         raise ValueError("Nome do usuário precisa ter ao menos 2 caracteres.")
 
-    usuarios = listar_usuarios()
+    email_normalizado = _normalizar_email(email) if str(email or "").strip() else ""
+    senha_normalizada = str(senha or "").strip()
+    if senha_normalizada and len(senha_normalizada) < 8:
+        raise ValueError("A senha precisa ter ao menos 8 caracteres.")
+
+    usuarios = _carregar_usuarios_brutos()
+    if email_normalizado and any(
+        str(user.get("email", "")).strip().lower() == email_normalizado for user in usuarios
+    ):
+        raise ValueError("Já existe um usuário com esse email.")
+
+    agora = _agora()
     novo = {
         "id": _id_curto(),
         "nome": nome,
-        "papel": (papel or "usuario").strip() or "usuario",
+        "email": email_normalizado,
+        "papel": _normalizar_papel(papel),
         "ativo": True,
         "desde": datetime.now().year,
-        "criado_em": _agora(),
+        "criado_em": agora,
+        "atualizado_em": agora,
+        "ultimo_login_em": "",
+        "senha_hash": gerar_hash_senha(senha_normalizada) if senha_normalizada else None,
     }
     usuarios.append(novo)
     _salvar_usuarios(usuarios)
-    return novo
+    return _usuario_publico(novo)
+
+
+def registrar_usuario_publico(nome: str, email: str, senha: str) -> dict:
+    if not str(email or "").strip():
+        raise ValueError("Email é obrigatório.")
+    if len(str(senha or "").strip()) < 8:
+        raise ValueError("A senha precisa ter ao menos 8 caracteres.")
+    return adicionar_usuario(
+        nome=nome,
+        papel="usuario",
+        email=email,
+        senha=senha,
+    )
 
 
 def atualizar_usuario(
-    user_id: str, nome: str | None = None, ativo: bool | None = None, papel: str | None = None
+    user_id: str,
+    nome: str | None = None,
+    ativo: bool | None = None,
+    papel: str | None = None,
+    email: str | None = None,
+    senha: str | None = None,
 ) -> dict | None:
-    usuarios = listar_usuarios()
+    usuarios = _carregar_usuarios_brutos()
+    uid = str(user_id or "").strip()
     for user in usuarios:
-        if user.get("id") != user_id:
+        if str(user.get("id", "")).strip() != uid:
             continue
         if nome is not None and nome.strip():
             user["nome"] = nome.strip()
         if ativo is not None:
             user["ativo"] = bool(ativo)
         if papel is not None and papel.strip():
-            user["papel"] = papel.strip()
+            user["papel"] = _normalizar_papel(papel)
+        if email is not None:
+            email_normalizado = _normalizar_email(email) if email.strip() else ""
+            if email_normalizado and any(
+                str(other.get("id", "")).strip() != uid
+                and str(other.get("email", "")).strip().lower() == email_normalizado
+                for other in usuarios
+            ):
+                raise ValueError("Já existe um usuário com esse email.")
+            user["email"] = email_normalizado
+        if senha is not None and senha.strip():
+            if len(senha.strip()) < 8:
+                raise ValueError("A senha precisa ter ao menos 8 caracteres.")
+            user["senha_hash"] = gerar_hash_senha(senha.strip())
+        user["atualizado_em"] = _agora()
         _salvar_usuarios(usuarios)
-        return user
+        return _usuario_publico(user)
     return None
 
 
 def remover_usuario(user_id: str) -> bool:
-    usuarios = listar_usuarios()
-    restantes = [u for u in usuarios if u.get("id") != user_id]
+    usuarios = _carregar_usuarios_brutos()
+    uid = str(user_id or "").strip()
+    restantes = [u for u in usuarios if str(u.get("id", "")).strip() != uid]
     if len(restantes) == len(usuarios):
         return False
     _salvar_usuarios(restantes)
     return True
+
+
+def autenticar_usuario(email: str, senha: str) -> dict | None:
+    email_normalizado = _normalizar_email(email)
+    senha_normalizada = str(senha or "").strip()
+    if not email_normalizado or not senha_normalizada:
+        return None
+
+    usuarios = _carregar_usuarios_brutos()
+    for user in usuarios:
+        if str(user.get("email", "")).strip().lower() != email_normalizado:
+            continue
+        if not bool(user.get("ativo", True)):
+            return None
+        registro = user.get("senha_hash")
+        if not verificar_hash_senha(senha_normalizada, registro):
+            return None
+        user["ultimo_login_em"] = _agora()
+        user["atualizado_em"] = _agora()
+        _salvar_usuarios(usuarios)
+        return _usuario_publico(user)
+    return None
 
 
 def _config_padrao() -> dict:

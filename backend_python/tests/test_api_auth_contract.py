@@ -42,6 +42,12 @@ class ApiAuthContractTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["ok"])
 
+    def test_auth_routes_stay_public_for_consumer_login(self) -> None:
+        with self._build_client("contrato-token"), TestClient(create_app()) as client:
+            response = client.get("/auth/profile?user_id=inexistente")
+
+        self.assertEqual(response.status_code, 404)
+
     def test_protected_route_requires_token(self) -> None:
         with self._build_client("contrato-token"), TestClient(create_app()) as client:
             response = client.get("/ops/status")

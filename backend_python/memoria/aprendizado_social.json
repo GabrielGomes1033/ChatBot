@@ -5,7 +5,7 @@
             "data": "2026-04-26T23:46:13.473305",
             "mensagens": [
                 {
-                    "agente": "KIRA",
+                    "agente": "PESQUISA",
                     "rodada": 1,
                     "mensagem": "Sou sua assistente virtual"
                 },
@@ -15,7 +15,7 @@
                     "mensagem": "Sou sua assistente virtual"
                 },
                 {
-                    "agente": "KIRA",
+                    "agente": "PESQUISA",
                     "rodada": 2,
                     "mensagem": "Sua mensagem ficou um pouco aberta para mim. Pode repetir como se estivesse falando comigo naturalmente?"
                 },
