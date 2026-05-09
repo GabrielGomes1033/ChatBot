@@ -1538,6 +1538,9 @@ class NovaHandler(BaseHTTPRequestHandler):
                         "/auth/register",
                         "/auth/login",
                         "/auth/profile",
+                        "/api/auth/register",
+                        "/api/auth/login",
+                        "/api/auth/profile",
                         "/chat",
                         "/jarvis/status",
                         "/actions/tools",
@@ -1557,7 +1560,7 @@ class NovaHandler(BaseHTTPRequestHandler):
         if path == "/health":
             self._send_json(build_api_health(entrypoint="api_server"))
             return
-        if path == "/auth/profile":
+        if path in {"/auth/profile", "/api/auth/profile"}:
             user_id = str(query.get("user_id", [""])[0] or "").strip()
             user = obter_usuario(user_id)
             if not user or not bool(user.get("ativo", True)):
@@ -1908,7 +1911,7 @@ class NovaHandler(BaseHTTPRequestHandler):
         ):
             return
 
-        if path == "/auth/register":
+        if path in {"/auth/register", "/api/auth/register"}:
             nome = str(body.get("name", body.get("nome", ""))).strip()
             email = str(body.get("email", "")).strip()
             senha = str(body.get("password", body.get("senha", ""))).strip()
@@ -1929,7 +1932,7 @@ class NovaHandler(BaseHTTPRequestHandler):
             )
             return
 
-        if path == "/auth/login":
+        if path in {"/auth/login", "/api/auth/login"}:
             email = str(body.get("email", "")).strip()
             senha = str(body.get("password", body.get("senha", ""))).strip()
             try:

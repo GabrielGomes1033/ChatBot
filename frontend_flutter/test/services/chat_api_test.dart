@@ -244,6 +244,54 @@ void main() {
     expect(session.email, 'gabriel@example.com');
   });
 
+  test('registerUser usa alias /api/auth/register quando /auth/register retorna 404',
+      () async {
+    final calls = <String>[];
+
+    final service = ChatApiService(
+      baseUrl: 'http://127.0.0.1:8000',
+      httpExecutor: (
+        String method,
+        Uri uri, {
+        required Map<String, String> headers,
+        String? encodedBody,
+      }) async {
+        calls.add(uri.toString());
+        expect(method, 'POST');
+        if (uri.path == '/auth/register') {
+          return http.Response(jsonEncode({'detail': 'Not Found'}), 404);
+        }
+        if (uri.path == '/api/auth/register') {
+          return http.Response(
+            jsonEncode({
+              'ok': true,
+              'session': {
+                'user_id': 'user_compat',
+                'name': 'Gabriel',
+                'email': 'gabriel@example.com',
+                'role': 'usuario',
+              },
+            }),
+            200,
+          );
+        }
+        fail('Chamada inesperada: ${uri.toString()}');
+      },
+    );
+
+    final session = await service.registerUser(
+      name: 'Gabriel',
+      email: 'gabriel@example.com',
+      password: 'nova12345',
+    );
+
+    expect(session.userId, 'user_compat');
+    expect(calls, [
+      'http://127.0.0.1:8000/auth/register',
+      'http://127.0.0.1:8000/api/auth/register',
+    ]);
+  });
+
   test(
       'generateDevCode faz fallback para /chat quando /dev/generate nao existe',
       () async {

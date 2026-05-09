@@ -181,6 +181,10 @@ class ChatApiService {
     if (path.startsWith('/auth/') && statusCode == 401) {
       return 'Email ou senha inválidos.';
     }
+    if (path.startsWith('/auth/') && statusCode == 404) {
+      return 'Endpoint de autenticação não encontrado nesse backend. '
+          'Atualize o deploy para expor /auth/* e /api/auth/*.';
+    }
     if (statusCode == 404 &&
         (path.startsWith('/autonomy') ||
             path.startsWith('/jarvis') ||
@@ -445,9 +449,9 @@ class ChatApiService {
     required String email,
     required String password,
   }) async {
-    final payload = await _requestJson(
-      'POST',
-      '/auth/register',
+    final payload = await _requestAuthJson(
+      method: 'POST',
+      path: '/auth/register',
       body: {
         'name': name.trim(),
         'email': email.trim(),
@@ -465,9 +469,9 @@ class ChatApiService {
     required String email,
     required String password,
   }) async {
-    final payload = await _requestJson(
-      'POST',
-      '/auth/login',
+    final payload = await _requestAuthJson(
+      method: 'POST',
+      path: '/auth/login',
       body: {
         'email': email.trim(),
         'password': password,
@@ -481,15 +485,43 @@ class ChatApiService {
   }
 
   Future<AuthSession> fetchUserProfile(String userId) async {
-    final payload = await _requestJson(
-      'GET',
-      '/auth/profile?user_id=${Uri.encodeComponent(userId.trim())}',
+    final payload = await _requestAuthJson(
+      method: 'GET',
+      path: '/auth/profile?user_id=${Uri.encodeComponent(userId.trim())}',
     );
     final session = payload['session'];
     if (session is! Map) {
       throw Exception('Sessão inválida recebida no perfil.');
     }
     return AuthSession.fromJson(Map<String, dynamic>.from(session));
+  }
+
+  Future<Map<String, dynamic>> _requestAuthJson({
+    required String method,
+    required String path,
+    Map<String, dynamic>? body,
+  }) async {
+    try {
+      return await _requestJsonAtBase(
+        _endpoint.baseUrl,
+        method,
+        path,
+        body: body,
+        allowPathFallback: false,
+      );
+    } on ApiHttpException catch (error) {
+      if (error.statusCode != 404) rethrow;
+      final fallbackPath = path.startsWith('/auth/')
+          ? '/api$path'
+          : path.replaceFirst('/api/auth/', '/auth/');
+      return _requestJsonAtBase(
+        _endpoint.baseUrl,
+        method,
+        fallbackPath,
+        body: body,
+        allowPathFallback: false,
+      );
+    }
   }
 
   Future<Map<String, dynamic>> sendJarvisMessage(

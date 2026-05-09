@@ -25,14 +25,7 @@ def _build_session_payload(user: dict) -> dict:
 
 
 if APIRouter is not None:
-    router = APIRouter(
-        prefix="/auth",
-        tags=["auth"],
-        dependencies=[Depends(rate_limit(40, 60))],
-    )
-
-    @router.post("/register")
-    def register(body: dict):
+    def _register_impl(body: dict):
         nome = str(body.get("name", body.get("nome", ""))).strip()
         email = str(body.get("email", "")).strip()
         senha = str(body.get("password", body.get("senha", ""))).strip()
@@ -46,8 +39,7 @@ if APIRouter is not None:
             "user": user,
         }
 
-    @router.post("/login")
-    def login(body: dict):
+    def _login_impl(body: dict):
         email = str(body.get("email", "")).strip()
         senha = str(body.get("password", body.get("senha", ""))).strip()
         try:
@@ -62,8 +54,7 @@ if APIRouter is not None:
             "user": user,
         }
 
-    @router.get("/profile")
-    def profile(user_id: str = Query(...)):
+    def _profile_impl(user_id: str):
         user = obter_usuario(user_id)
         if not user or not bool(user.get("ativo", True)):
             raise HTTPException(status_code=404, detail="user_not_found")
@@ -73,5 +64,42 @@ if APIRouter is not None:
             "user": user,
         }
 
+    router = APIRouter(
+        prefix="/auth",
+        tags=["auth"],
+        dependencies=[Depends(rate_limit(40, 60))],
+    )
+
+    compat_router = APIRouter(
+        prefix="/api/auth",
+        tags=["auth_compat"],
+        dependencies=[Depends(rate_limit(40, 60))],
+    )
+
+    @router.post("/register")
+    def register(body: dict):
+        return _register_impl(body)
+
+    @compat_router.post("/register")
+    def register_compat(body: dict):
+        return _register_impl(body)
+
+    @router.post("/login")
+    def login(body: dict):
+        return _login_impl(body)
+
+    @compat_router.post("/login")
+    def login_compat(body: dict):
+        return _login_impl(body)
+
+    @router.get("/profile")
+    def profile(user_id: str = Query(...)):
+        return _profile_impl(user_id)
+
+    @compat_router.get("/profile")
+    def profile_compat(user_id: str = Query(...)):
+        return _profile_impl(user_id)
+
 else:
     router = None
+    compat_router = None

@@ -48,6 +48,33 @@ class ApiAuthContractTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 404)
 
+    def test_auth_compat_routes_stay_public_for_reverse_proxy_deploys(self) -> None:
+        with self._build_client("contrato-token"), patch(
+            "api.routes_auth.registrar_usuario_publico",
+            return_value={
+                "id": "user_compat",
+                "nome": "Gabriel",
+                "email": "gabriel@example.com",
+                "papel": "usuario",
+                "ativo": True,
+                "criado_em": "2026-01-01T10:00:00",
+                "ultimo_login_em": "",
+            },
+        ), TestClient(create_app()) as client:
+            register = client.post(
+                "/api/auth/register",
+                json={
+                    "name": "Gabriel",
+                    "email": "gabriel@example.com",
+                    "password": "nova12345",
+                },
+            )
+            profile = client.get("/api/auth/profile?user_id=inexistente")
+
+        self.assertEqual(register.status_code, 200)
+        self.assertTrue(register.json()["ok"])
+        self.assertEqual(profile.status_code, 404)
+
     def test_protected_route_requires_token(self) -> None:
         with self._build_client("contrato-token"), TestClient(create_app()) as client:
             response = client.get("/ops/status")
