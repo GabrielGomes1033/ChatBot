@@ -2798,8 +2798,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final colors = context.novaColors;
         return NovaPanelDialog(
           title: 'PIN Administrativo',
-          child: SizedBox(
-            width: 420,
+          child: NovaDialogContent(
+            maxWidth: 420,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2997,8 +2997,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
             return NovaPanelDialog(
               title: 'LEMBRETES',
-              child: SizedBox(
-                width: 640,
+              child: NovaDialogContent(
+                maxWidth: 640,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -3102,8 +3102,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final colors = context.novaColors;
         return NovaPanelDialog(
           title: 'COMPATIBILIDADE',
-          child: SizedBox(
-            width: 620,
+          child: NovaDialogContent(
+            maxWidth: 620,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -3491,8 +3491,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
             return NovaPanelDialog(
               title: 'ANÁLISE DE ARQUIVOS',
-              child: SizedBox(
-                width: 760,
+              child: NovaDialogContent(
+                maxWidth: 760,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
@@ -3717,8 +3717,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             }
             return NovaPanelDialog(
               title: 'HELP • NOVA',
-              child: SizedBox(
-                width: 820,
+              child: NovaDialogContent(
+                maxWidth: 820,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
@@ -4149,8 +4149,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   label: const Text('Novo'),
                 ),
               ],
-              child: SizedBox(
-                width: 620,
+              child: NovaDialogContent(
+                maxWidth: 620,
                 child: _knowledge.isEmpty
                     ? const Padding(
                         padding: EdgeInsets.symmetric(vertical: 28),
@@ -4424,8 +4424,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
             return NovaPanelDialog(
               title: 'GERENCIAR USUÁRIOS',
-              child: SizedBox(
-                width: 620,
+              child: NovaDialogContent(
+                maxWidth: 620,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -4724,8 +4724,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   final colors = context.novaColors;
                   return NovaPanelDialog(
                     title: 'Definir PIN administrativo',
-                    child: SizedBox(
-                      width: 460,
+                    child: NovaDialogContent(
+                      maxWidth: 460,
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4808,8 +4808,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
             return NovaPanelDialog(
               title: 'CONFIGURAÇÕES',
-              child: SizedBox(
-                width: 620,
+              child: NovaDialogContent(
+                maxWidth: 620,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -5278,8 +5278,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final colors = dialogContext.novaColors;
         return NovaPanelDialog(
           title: 'Nova nota no vault',
-          child: SizedBox(
-            width: 560,
+          child: NovaDialogContent(
+            maxWidth: 560,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -5861,24 +5861,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               ),
               if (showShellLabel) ...[
                 SizedBox(height: smallMobile ? 10 : 12),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.forum_outlined,
-                      size: 15,
-                      color: colors.textSecondary,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Chat ativo',
-                      style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: smallMobile ? 12.0 : 12.6,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final stackHeader = constraints.maxWidth < 300;
+                    final label = Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.forum_outlined,
+                          size: 15,
+                          color: colors.textSecondary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Chat ativo',
+                          style: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: smallMobile ? 12.0 : 12.6,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    );
+                    final count = Text(
                       visibleLines.isEmpty
                           ? 'Aguardando'
                           : '${visibleLines.length} registro${visibleLines.length == 1 ? '' : 's'}',
@@ -5887,8 +5892,27 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         fontSize: smallMobile ? 11.4 : 12,
                         fontWeight: FontWeight.w600,
                       ),
-                    ),
-                  ],
+                    );
+
+                    if (stackHeader) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          label,
+                          const SizedBox(height: 6),
+                          count,
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      children: [
+                        label,
+                        const Spacer(),
+                        count,
+                      ],
+                    );
+                  },
                 ),
                 SizedBox(height: smallMobile ? 10 : 12),
                 Container(
@@ -6149,69 +6173,93 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             ),
           ),
           SizedBox(height: microCompact ? 10 : 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              NovaMetalLogo(size: logoSize),
-              SizedBox(width: microCompact ? 10 : 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stackStatePill = constraints.maxWidth < 340;
+              final content = Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  NovaMetalLogo(size: logoSize),
+                  SizedBox(width: microCompact ? 10 : 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          children: [
+                            Text(
+                              'NOVA',
+                              style: TextStyle(
+                                color: colors.textPrimary,
+                                fontSize: microCompact ? 12.6 : 13.4,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.1,
+                              ),
+                            ),
+                            Text(
+                              'ligada ao contexto',
+                              style: TextStyle(
+                                color: colors.textSecondary,
+                                fontSize: microCompact ? 10.8 : 11.2,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: microCompact ? 6 : 8),
                         Text(
-                          'NOVA',
+                          headline,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: colors.textPrimary,
-                            fontSize: microCompact ? 12.6 : 13.4,
+                            fontSize: titleFontSize,
                             fontWeight: FontWeight.w800,
-                            letterSpacing: 0.1,
+                            height: 1.18,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'ligada ao contexto',
-                          style: TextStyle(
-                            color: colors.textSecondary,
-                            fontSize: microCompact ? 10.8 : 11.2,
-                            fontWeight: FontWeight.w600,
+                        if (showBriefing) ...[
+                          SizedBox(height: microCompact ? 6 : 8),
+                          Text(
+                            briefing,
+                            maxLines: microCompact ? 2 : 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: colors.textSecondary,
+                              fontSize: briefingFontSize,
+                              height: 1.38,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
-                    SizedBox(height: microCompact ? 6 : 8),
-                    Text(
-                      headline,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: colors.textPrimary,
-                        fontSize: titleFontSize,
-                        fontWeight: FontWeight.w800,
-                        height: 1.18,
-                      ),
-                    ),
-                    if (showBriefing) ...[
-                      SizedBox(height: microCompact ? 6 : 8),
-                      Text(
-                        briefing,
-                        maxLines: microCompact ? 2 : 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: colors.textSecondary,
-                          fontSize: briefingFontSize,
-                          height: 1.38,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+                  ),
+                ],
+              );
+
+              if (stackStatePill) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    content,
+                    const SizedBox(height: 10),
+                    statePill(),
                   ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              statePill(),
-            ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: content),
+                  const SizedBox(width: 10),
+                  statePill(),
+                ],
+              );
+            },
           ),
           if (showActions) ...[
             SizedBox(height: microCompact ? 10 : 12),
@@ -6388,6 +6436,32 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }) {
     final useTwoColumns = width >= 860;
     if (portrait) {
+      if (width < 920) {
+        return Column(
+          children: [
+            NovaSidebarBio(
+              statusLabel: _assistantState.label,
+              contextText: _conversationContextLabel(),
+              onOpenMemory: _openBrainDialog,
+              compact: true,
+              spotlight: true,
+            ),
+            const SizedBox(height: 14),
+            NovaModulesPanel(
+              modules: _contextModules(),
+              onModuleTap: _handleModuleTap,
+              compact: true,
+              spotlight: true,
+            ),
+            const SizedBox(height: 12),
+            _buildMemoryPanel(
+              compact: true,
+              spotlight: true,
+            ),
+          ],
+        );
+      }
+
       return Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

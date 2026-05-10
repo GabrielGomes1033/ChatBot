@@ -199,6 +199,37 @@ class NovaPanelDialog extends StatelessWidget {
   }
 }
 
+class NovaDialogContent extends StatelessWidget {
+  const NovaDialogContent({
+    super.key,
+    required this.maxWidth,
+    required this.child,
+    this.alignment = Alignment.topCenter,
+  });
+
+  final double maxWidth;
+  final Widget child;
+  final AlignmentGeometry alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    final viewportWidth = MediaQuery.sizeOf(context).width;
+    final gutter = viewportWidth < 360 ? 28.0 : 40.0;
+    final availableWidth =
+        viewportWidth > gutter ? viewportWidth - gutter : viewportWidth;
+    final resolvedMaxWidth =
+        availableWidth < maxWidth ? availableWidth : maxWidth;
+
+    return Align(
+      alignment: alignment,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: resolvedMaxWidth),
+        child: child,
+      ),
+    );
+  }
+}
+
 class NovaFieldLabel extends StatelessWidget {
   const NovaFieldLabel(this.value, {super.key});
 

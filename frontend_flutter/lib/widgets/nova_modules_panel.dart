@@ -131,43 +131,91 @@ class NovaModulesPanel extends StatelessWidget {
                       ),
                       SizedBox(width: compact ? 10 : 12),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final stackMetric = constraints.maxWidth < 220;
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(
-                                  child: Text(
-                                    module.title,
-                                    style: TextStyle(
-                                      color: colors.textPrimary,
-                                      fontSize: compact ? 13.8 : 14.5,
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                                if (stackMetric)
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        module.title,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: colors.textPrimary,
+                                          fontSize: compact ? 13.8 : 14.5,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        module.metric,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: module.active
+                                              ? colors.primary
+                                              : colors.textSecondary,
+                                          fontSize: compact ? 11.4 : 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                else
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          module.title,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: colors.textPrimary,
+                                            fontSize: compact ? 13.8 : 14.5,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Flexible(
+                                        child: Text(
+                                          module.metric,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.right,
+                                          style: TextStyle(
+                                            color: module.active
+                                                ? colors.primary
+                                                : colors.textSecondary,
+                                            fontSize: compact ? 11.4 : 12,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
+                                const SizedBox(height: 6),
                                 Text(
-                                  module.metric,
+                                  module.description,
+                                  maxLines: compact ? 4 : 5,
+                                  overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    color: module.active
-                                        ? colors.primary
-                                        : colors.textSecondary,
-                                    fontSize: compact ? 11.4 : 12,
-                                    fontWeight: FontWeight.w700,
+                                    color: colors.textSecondary,
+                                    fontSize: compact ? 12.2 : 12.8,
+                                    height: 1.45,
                                   ),
                                 ),
                               ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              module.description,
-                              style: TextStyle(
-                                color: colors.textSecondary,
-                                fontSize: compact ? 12.2 : 12.8,
-                                height: 1.45,
-                              ),
-                            ),
-                          ],
+                            );
+                          },
                         ),
                       ),
                     ],

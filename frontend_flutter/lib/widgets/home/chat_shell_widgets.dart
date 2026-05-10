@@ -126,70 +126,104 @@ class NovaTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.novaColors;
     final controlSize = compressed ? 44.0 : 48.0;
-
-    return Row(
-      children: [
-        NovaPillIconButton(
-          icon: Icons.widgets_rounded,
-          onPressed: onOpenQuickMenu,
-          size: controlSize,
-          tooltip: 'Abrir painel rapido',
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: NovaCard(
-            style: NovaCardStyle.glass,
-            radius: 26,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                _NovaLogoBadge(size: controlSize - 2),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'NOVA',
-                              style: TextStyle(
-                                color: colors.textPrimary,
-                                fontSize: compact ? 16.5 : 17.5,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.18,
-                              ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 430;
+        final infoCard = NovaCard(
+          style: NovaCardStyle.glass,
+          radius: 26,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              _NovaLogoBadge(size: controlSize - 2),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'NOVA',
+                            style: TextStyle(
+                              color: colors.textPrimary,
+                              fontSize: compact ? 16.5 : 17.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.18,
                             ),
                           ),
-                          _NovaAssistantStatePill(
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: _NovaAssistantStatePill(
                             state: assistantState,
                             compact: true,
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        contextLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: colors.textSecondary,
-                          fontSize: compact ? 11.5 : 12.5,
-                          height: 1.35,
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      contextLabel,
+                      maxLines: stacked ? 2 : 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: compact ? 11.5 : 12.5,
+                        height: 1.35,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ),
-        const SizedBox(width: 12),
-        Row(
+        );
+
+        if (stacked) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  NovaPillIconButton(
+                    icon: Icons.widgets_rounded,
+                    onPressed: onOpenQuickMenu,
+                    size: controlSize,
+                    tooltip: 'Abrir painel rapido',
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: infoCard),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: NovaPillIconButton(
+                  icon: Icons.group_outlined,
+                  onPressed: onOpenUsersDialog,
+                  size: controlSize,
+                  tooltip: 'Usuarios',
+                ),
+              ),
+            ],
+          );
+        }
+
+        return Row(
           children: [
+            NovaPillIconButton(
+              icon: Icons.widgets_rounded,
+              onPressed: onOpenQuickMenu,
+              size: controlSize,
+              tooltip: 'Abrir painel rapido',
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: infoCard),
+            const SizedBox(width: 12),
             NovaPillIconButton(
               icon: Icons.group_outlined,
               onPressed: onOpenUsersDialog,
@@ -197,8 +231,8 @@ class NovaTopBar extends StatelessWidget {
               tooltip: 'Usuarios',
             ),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 }

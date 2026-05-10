@@ -101,23 +101,11 @@ class NovaModalFrame extends StatelessWidget {
                     children: [
                       Padding(
                         padding: const EdgeInsets.fromLTRB(22, 20, 12, 16),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: colors.textPrimary,
-                                  fontSize: size.width < 460 ? 20 : 24,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: -0.4,
-                                ),
-                              ),
-                            ),
-                            ...actions,
-                            Container(
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final stackActions = actions.isNotEmpty &&
+                                constraints.maxWidth < 520;
+                            final closeButton = Container(
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: Colors.white.withValues(
@@ -132,8 +120,42 @@ class NovaModalFrame extends StatelessWidget {
                                   color: colors.textSecondary,
                                 ),
                               ),
-                            ),
-                          ],
+                            );
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        title,
+                                        maxLines: stackActions ? 2 : 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: colors.textPrimary,
+                                          fontSize: size.width < 460 ? 20 : 24,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: -0.4,
+                                        ),
+                                      ),
+                                    ),
+                                    if (!stackActions) ...actions,
+                                    closeButton,
+                                  ],
+                                ),
+                                if (stackActions) ...[
+                                  const SizedBox(height: 12),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: actions,
+                                  ),
+                                ],
+                              ],
+                            );
+                          },
                         ),
                       ),
                       Divider(height: 1, color: colors.glassBorder),

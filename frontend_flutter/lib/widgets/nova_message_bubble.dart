@@ -69,12 +69,16 @@ class NovaMessageBubble extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  isLive ? 'NOVA pensando...' : 'NOVA',
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w800,
+                Expanded(
+                  child: Text(
+                    isLive ? 'NOVA pensando...' : 'NOVA',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: colors.textPrimary,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               ],
@@ -92,31 +96,46 @@ class NovaMessageBubble extends StatelessWidget {
           ),
           if (!fromUser && (onViewTap != null || onCopyTap != null)) ...[
             const SizedBox(height: 14),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                if (onViewTap != null)
-                  _buildActionChip(
-                    context: context,
-                    icon: Icons.code_rounded,
-                    label: (viewLabel?.trim().isNotEmpty ?? false)
-                        ? viewLabel!.trim()
-                        : 'Ver codigo',
-                    onTap: onViewTap!,
-                    emphasized: false,
-                  ),
-                if (onCopyTap != null)
-                  _buildActionChip(
-                    context: context,
-                    icon: Icons.content_copy_rounded,
-                    label: (copyLabel?.trim().isNotEmpty ?? false)
-                        ? copyLabel!.trim()
-                        : 'Copiar codigo',
-                    onTap: onCopyTap!,
-                    emphasized: true,
-                  ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final chipMaxWidth =
+                    constraints.maxWidth < 320 ? constraints.maxWidth : 280.0;
+                final expandChip = constraints.maxWidth < 360;
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    if (onViewTap != null)
+                      ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: chipMaxWidth),
+                        child: _buildActionChip(
+                          context: context,
+                          icon: Icons.code_rounded,
+                          label: (viewLabel?.trim().isNotEmpty ?? false)
+                              ? viewLabel!.trim()
+                              : 'Ver codigo',
+                          onTap: onViewTap!,
+                          emphasized: false,
+                          expand: expandChip,
+                        ),
+                      ),
+                    if (onCopyTap != null)
+                      ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: chipMaxWidth),
+                        child: _buildActionChip(
+                          context: context,
+                          icon: Icons.content_copy_rounded,
+                          label: (copyLabel?.trim().isNotEmpty ?? false)
+                              ? copyLabel!.trim()
+                              : 'Copiar codigo',
+                          onTap: onCopyTap!,
+                          emphasized: true,
+                          expand: expandChip,
+                        ),
+                      ),
+                  ],
+                );
+              },
             ),
           ],
           const SizedBox(height: 12),
@@ -154,6 +173,7 @@ class NovaMessageBubble extends StatelessWidget {
     required String label,
     required VoidCallback onTap,
     required bool emphasized,
+    bool expand = false,
   }) {
     final colors = context.novaColors;
     return GestureDetector(
@@ -177,7 +197,7 @@ class NovaMessageBubble extends StatelessWidget {
           ),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
           children: [
             Icon(
               icon,
@@ -185,12 +205,16 @@ class NovaMessageBubble extends StatelessWidget {
               color: emphasized ? colors.primary : colors.textPrimary,
             ),
             const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: emphasized ? colors.primary : colors.textPrimary,
-                fontSize: 12.8,
-                fontWeight: FontWeight.w700,
+            Flexible(
+              child: Text(
+                label,
+                maxLines: expand ? 2 : 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: emphasized ? colors.primary : colors.textPrimary,
+                  fontSize: 12.8,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ],

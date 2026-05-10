@@ -81,6 +81,18 @@ class _NovaFrontendAppState extends State<NovaFrontendApp> {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
+      builder: (context, child) {
+        final media = MediaQuery.of(context);
+        return MediaQuery(
+          data: media.copyWith(
+            textScaler: media.textScaler.clamp(
+              minScaleFactor: 0.92,
+              maxScaleFactor: 1.10,
+            ),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       home: _loadingSession
           ? const Scaffold(
               body: Center(

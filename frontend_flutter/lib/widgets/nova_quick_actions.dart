@@ -42,32 +42,41 @@ class NovaQuickActions extends StatelessWidget {
               .map(
                 (action) => GestureDetector(
                   onTap: () => onActionTap(action),
-                  child: GlassContainer(
-                    borderRadius: 18,
-                    blur: 18,
-                    opacity: context.isNovaDark ? 0.16 : 0.28,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: compact ? 12 : 14,
-                      vertical: compact ? 10 : 11,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: compact ? 220 : 260,
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          action.icon ?? Icons.bolt_rounded,
-                          size: compact ? 15 : 16,
-                          color: colors.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          action.label,
-                          style: TextStyle(
-                            color: colors.textPrimary,
-                            fontSize: compact ? 12.5 : 13,
-                            fontWeight: FontWeight.w700,
+                    child: GlassContainer(
+                      borderRadius: 18,
+                      blur: 18,
+                      opacity: context.isNovaDark ? 0.16 : 0.28,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: compact ? 12 : 14,
+                        vertical: compact ? 10 : 11,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            action.icon ?? Icons.bolt_rounded,
+                            size: compact ? 15 : 16,
+                            color: colors.primary,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              action.label,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: colors.textPrimary,
+                                fontSize: compact ? 12.5 : 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

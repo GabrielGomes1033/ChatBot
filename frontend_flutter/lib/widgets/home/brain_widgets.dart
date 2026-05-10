@@ -72,28 +72,46 @@ class NovaBrainBoard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _clean(note['title']).isEmpty
-                                ? 'Nota sem título'
-                                : _clean(note['title']),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: colors.textPrimary,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                            ),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final stackBadge = constraints.maxWidth < 250;
+                        final title = Text(
+                          _clean(note['title']).isEmpty
+                              ? 'Nota sem título'
+                              : _clean(note['title']),
+                          maxLines: stackBadge ? 2 : 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        _NovaBrainChip(
+                        );
+                        final badge = _NovaBrainChip(
                           label: '${_asInt(note['backlinks_count'])} backlinks',
                           active: _asInt(note['backlinks_count']) > 0,
-                        ),
-                      ],
+                        );
+
+                        if (stackBadge) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              title,
+                              const SizedBox(height: 8),
+                              badge,
+                            ],
+                          );
+                        }
+
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: title),
+                            const SizedBox(width: 8),
+                            badge,
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 10),
                     Text(
@@ -433,7 +451,7 @@ class NovaBrainBoard extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 980;
+        final wide = constraints.maxWidth >= 1120;
         final leftColumn = ListView(
           children: [
             _buildSummaryCard(),
@@ -526,7 +544,7 @@ class NovaBrainBoard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
-              width: constraints.maxWidth * 0.36,
+              width: math.min(constraints.maxWidth * 0.38, 360.0),
               child: leftColumn,
             ),
             const SizedBox(width: 16),
@@ -606,6 +624,8 @@ class _NovaBrainChip extends StatelessWidget {
       ),
       child: Text(
         label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           color: active ? colors.primary : colors.textSecondary,
           fontSize: 11.8,

@@ -5,6 +5,7 @@ import '../services/api_endpoint_config.dart';
 import '../services/chat_api.dart';
 import '../theme/colors.dart';
 import '../widgets/glass_container.dart';
+import '../widgets/home/dialog_widgets.dart' show NovaDialogContent;
 import '../widgets/home/chat_shell_widgets.dart' show NovaGridBackground;
 import '../widgets/nova_sidebar_bio.dart' show NovaMetalLogo;
 
@@ -260,8 +261,9 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
             return AlertDialog(
               backgroundColor: colors.surface,
               title: const Text('Conexão com API'),
-              content: SizedBox(
-                width: 420,
+              content: NovaDialogContent(
+                maxWidth: 420,
+                alignment: Alignment.centerLeft,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,

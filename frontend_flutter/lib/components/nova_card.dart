@@ -43,23 +43,45 @@ class NovaCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (title != null || trailing != null) ...[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (title != null)
-                  Expanded(
-                    child: Text(
-                      title!,
-                      style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.9,
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final stackHeader = title != null &&
+                    trailing != null &&
+                    constraints.maxWidth < 460;
+                final titleWidget = title == null
+                    ? null
+                    : Text(
+                        title!,
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.9,
+                        ),
+                      );
+
+                if (stackHeader) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      titleWidget!,
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: trailing!,
                       ),
-                    ),
-                  ),
-                if (trailing != null) trailing!,
-              ],
+                    ],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (titleWidget != null) Expanded(child: titleWidget),
+                    if (trailing != null) trailing!,
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 14),
           ],
