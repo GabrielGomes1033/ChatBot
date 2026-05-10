@@ -1,26 +1,37 @@
 import 'package:flutter/material.dart';
 
 import '../models/auth_session.dart';
+import '../services/api_endpoint_config.dart';
 import '../services/chat_api.dart';
 import '../theme/colors.dart';
 import '../widgets/glass_container.dart';
 import '../widgets/home/chat_shell_widgets.dart' show NovaGridBackground;
 import '../widgets/nova_sidebar_bio.dart' show NovaMetalLogo;
 
+typedef AuthConnectionChanged = Future<void> Function({
+  required String apiBaseUrl,
+  required String apiToken,
+});
+
 class AuthGateScreen extends StatefulWidget {
   const AuthGateScreen({
     super.key,
     required this.onAuthenticated,
+    this.initialApiBaseUrl = '',
+    this.initialApiToken = '',
+    this.onConnectionChanged,
   });
 
   final ValueChanged<AuthSession> onAuthenticated;
+  final String initialApiBaseUrl;
+  final String initialApiToken;
+  final AuthConnectionChanged? onConnectionChanged;
 
   @override
   State<AuthGateScreen> createState() => _AuthGateScreenState();
 }
 
 class _AuthGateScreenState extends State<AuthGateScreen> {
-  final ChatApiService _api = ChatApiService();
   final TextEditingController _loginEmailController = TextEditingController();
   final TextEditingController _loginPasswordController =
       TextEditingController();
@@ -31,6 +42,9 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
       TextEditingController();
   final TextEditingController _registerConfirmController =
       TextEditingController();
+  late final ChatApiService _api;
+  late String _configuredApiBaseUrl;
+  late String _configuredApiToken;
 
   bool _registerMode = false;
   bool _submitting = false;
@@ -38,6 +52,18 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
   bool _registerPasswordVisible = false;
   bool _registerConfirmVisible = false;
   String _feedback = '';
+  String _connectionFeedback = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _configuredApiBaseUrl = widget.initialApiBaseUrl.trim();
+    _configuredApiToken = widget.initialApiToken.trim();
+    _api = ChatApiService(
+      baseUrl: _configuredApiBaseUrl,
+      apiToken: _configuredApiToken,
+    );
+  }
 
   @override
   void dispose() {
@@ -101,13 +127,216 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
       widget.onAuthenticated(session);
     } catch (error) {
       if (!mounted) return;
-      final message = error.toString().replaceFirst('Exception: ', '');
+      var message = error.toString().replaceFirst('Exception: ', '');
+      if (message.contains('Falha de conexão com a API') ||
+          message.contains('Tempo esgotado ao conectar com a API')) {
+        message =
+            '$message Verifique se o backend está ligado e revise a URL em "Configurar API".';
+      }
       setState(() => _feedback = message);
     } finally {
       if (mounted) {
         setState(() => _submitting = false);
       }
     }
+  }
+
+  String get _apiConnectionSummary {
+    if (_configuredApiBaseUrl.isEmpty) {
+      return 'Auto-detect ativo. Endpoint atual: ${_api.baseUrl}';
+    }
+    return 'API manual: ${_api.baseUrl}';
+  }
+
+  Future<void> _openConnectionDialog() async {
+    final apiBaseUrlController = TextEditingController(
+      text: _configuredApiBaseUrl,
+    );
+    final apiTokenController = TextEditingController(
+      text: _configuredApiToken,
+    );
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        var dialogFeedback = _connectionFeedback;
+        var busy = false;
+
+        Future<void> testConnection(StateSetter setLocalState) async {
+          final rawBaseUrl = apiBaseUrlController.text.trim();
+          final normalizedBaseUrl = ApiEndpointConfig.normalizeBaseUrl(
+            rawBaseUrl,
+          );
+          if (rawBaseUrl.isNotEmpty && normalizedBaseUrl.isEmpty) {
+            setLocalState(() {
+              dialogFeedback =
+                  'URL inválida. Use algo como ${ApiEndpointConfig.exampleManualBaseUrl()}.';
+            });
+            return;
+          }
+
+          setLocalState(() {
+            busy = true;
+            dialogFeedback = 'Testando conexão...';
+          });
+
+          try {
+            final probe = ChatApiService(
+              baseUrl: normalizedBaseUrl,
+              apiToken: apiTokenController.text.trim(),
+            );
+            final health = await probe.discoverBackend(
+              explicitBaseUrl:
+                  normalizedBaseUrl.isEmpty ? null : normalizedBaseUrl,
+            );
+            final reachable =
+                health['reachable'] == true || health['ok'] == true;
+            setLocalState(() {
+              dialogFeedback = reachable
+                  ? 'Conexão OK em ${health['base_url'] ?? probe.baseUrl}.'
+                  : (health['message']?.toString() ??
+                      'Não foi possível encontrar um backend ativo.');
+            });
+          } catch (error) {
+            setLocalState(() {
+              dialogFeedback = error
+                  .toString()
+                  .replaceFirst('Exception: ', '')
+                  .replaceAll('\n', ' ');
+            });
+          } finally {
+            setLocalState(() => busy = false);
+          }
+        }
+
+        Future<void> saveConnection(StateSetter setLocalState) async {
+          final rawBaseUrl = apiBaseUrlController.text.trim();
+          final normalizedBaseUrl = ApiEndpointConfig.normalizeBaseUrl(
+            rawBaseUrl,
+          );
+          if (rawBaseUrl.isNotEmpty && normalizedBaseUrl.isEmpty) {
+            setLocalState(() {
+              dialogFeedback =
+                  'URL inválida. Use algo como ${ApiEndpointConfig.exampleManualBaseUrl()}.';
+            });
+            return;
+          }
+
+          setLocalState(() => busy = true);
+          try {
+            await widget.onConnectionChanged?.call(
+              apiBaseUrl: normalizedBaseUrl,
+              apiToken: apiTokenController.text.trim(),
+            );
+            _configuredApiBaseUrl = normalizedBaseUrl;
+            _configuredApiToken = apiTokenController.text.trim();
+            _api.updateConnection(
+              baseUrl: _configuredApiBaseUrl,
+              apiToken: _configuredApiToken,
+            );
+            if (!mounted) return;
+            setState(() {
+              _connectionFeedback = normalizedBaseUrl.isEmpty
+                  ? 'Auto-detect reativado para a API.'
+                  : 'API configurada para ${_api.baseUrl}.';
+              if (_feedback.contains('Falha de conexão com a API') ||
+                  _feedback.contains('Tempo esgotado ao conectar com a API')) {
+                _feedback = '';
+              }
+            });
+            if (dialogContext.mounted) {
+              Navigator.of(dialogContext).pop();
+            }
+          } finally {
+            if (dialogContext.mounted) {
+              setLocalState(() => busy = false);
+            }
+          }
+        }
+
+        return StatefulBuilder(
+          builder: (context, setLocalState) {
+            final colors = context.novaColors;
+            return AlertDialog(
+              backgroundColor: colors.surface,
+              title: const Text('Conexão com API'),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Para celular físico, use o IP da máquina onde a API está rodando. Ex.: ${ApiEndpointConfig.exampleManualBaseUrl('192.168.0.114')}.',
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 13,
+                        height: 1.45,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: apiBaseUrlController,
+                      keyboardType: TextInputType.url,
+                      decoration: InputDecoration(
+                        labelText: 'URL da API',
+                        hintText: ApiEndpointConfig.exampleManualBaseUrl(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: apiTokenController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Token da API',
+                        hintText: 'Opcional',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      dialogFeedback.isEmpty
+                          ? 'Deixe a URL vazia para usar o auto-detect da plataforma.'
+                          : dialogFeedback,
+                      style: TextStyle(
+                        color: dialogFeedback.startsWith('Conexão OK')
+                            ? const Color(0xFF0F9D58)
+                            : colors.textSecondary,
+                        fontSize: 12.8,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed:
+                      busy ? null : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancelar'),
+                ),
+                TextButton(
+                  onPressed: busy ? null : () => testConnection(setLocalState),
+                  child: const Text('Testar'),
+                ),
+                FilledButton(
+                  onPressed: busy ? null : () => saveConnection(setLocalState),
+                  child: busy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Salvar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    apiBaseUrlController.dispose();
+    apiTokenController.dispose();
   }
 
   void _setRegisterMode(bool value) {
@@ -398,6 +627,60 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
               ),
             ),
           ],
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(
+                alpha: context.isNovaDark ? 0.05 : 0.42,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: colors.glassBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Conexão com API',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: 13.6,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _apiConnectionSummary,
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 12.6,
+                    height: 1.4,
+                  ),
+                ),
+                if (_connectionFeedback.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    _connectionFeedback,
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: 12.2,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: _submitting ? null : _openConnectionDialog,
+                    icon: const Icon(Icons.settings_ethernet_rounded, size: 18),
+                    label: const Text('Configurar API'),
+                  ),
+                ),
+              ],
+            ),
+          ),
           if (_feedback.isNotEmpty) ...[
             const SizedBox(height: 14),
             Text(
@@ -527,7 +810,8 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
           if (!compact) const Spacer(),
           SizedBox(height: compact ? 22 : 0),
           Container(
-            constraints: BoxConstraints(maxWidth: compact ? double.infinity : 460),
+            constraints:
+                BoxConstraints(maxWidth: compact ? double.infinity : 460),
             padding: EdgeInsets.all(compact ? 16 : 18),
             decoration: BoxDecoration(
               color: Colors.white.withValues(

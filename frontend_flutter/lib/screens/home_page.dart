@@ -1306,6 +1306,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       telegramToken: _config['telegram_token']?.toString() ?? '',
       telegramChatId: _config['telegram_chat_id']?.toString() ?? '',
       apiToken: _config['api_token']?.toString() ?? '',
+      apiBaseUrl: _config['api_base_url']?.toString() ?? '',
     );
 
     final sanitizedConfig = Map<String, dynamic>.from(_config)
