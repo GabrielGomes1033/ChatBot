@@ -54,7 +54,16 @@ def _resolve_cors_settings() -> dict[str, object]:
 
     return {
         "allow_origins": [],
-        "allow_origin_regex": r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+        "allow_origin_regex": (
+            r"^https?://("
+            r"localhost|"
+            r"127\.0\.0\.1|"
+            r"10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
+            r"192\.168\.\d{1,3}\.\d{1,3}|"
+            r"172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}|"
+            r"[a-zA-Z0-9-]+\.local"
+            r")(:\d+)?$"
+        ),
         "allow_credentials": True,
     }
 

@@ -73,6 +73,22 @@ class ApiSmokeTests(unittest.TestCase):
         self.assertEqual(response.headers["access-control-allow-origin"], "http://localhost:3000")
         self.assertIn("GET", response.headers["access-control-allow-methods"])
 
+    def test_cors_preflight_accepts_private_lan_origin_by_default(self) -> None:
+        response = self.client.options(
+            "/voice/status",
+            headers={
+                "Origin": "http://192.168.0.114:3000",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers["access-control-allow-origin"],
+            "http://192.168.0.114:3000",
+        )
+        self.assertIn("POST", response.headers["access-control-allow-methods"])
+
     def test_chat_dev_mode_gera_codigo_e_ignora_confirmacao_pendente(self) -> None:
         chat_routes._PENDING_STRUCTURED_CHAT["default"] = {
             "tool_name": "schedule_calendar_event",
