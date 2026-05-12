@@ -233,7 +233,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (content.isEmpty) continue;
       final lowered = content.toLowerCase();
       if (hints.any(lowered.contains)) {
-        return _truncateRailText(content, limit: 42);
+        return _truncateRailText(content, limit: 38);
       }
     }
     for (final note in _brainNotes) {
@@ -241,7 +241,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (title.isEmpty) continue;
       final lowered = title.toLowerCase();
       if (hints.any(lowered.contains)) {
-        return _truncateRailText(title, limit: 38);
+        return _truncateRailText(title, limit: 35);
       }
     }
     return 'projeto NOVA';

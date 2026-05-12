@@ -52,12 +52,19 @@ class ChatApiService {
           apiToken,
           fallback: _definedApiToken,
         ),
-        _httpExecutor = httpExecutor;
+        _hasExplicitBaseUrl = (baseUrl?.trim().isNotEmpty == true),
+        _httpExecutor = httpExecutor {
+    if (_hasExplicitBaseUrl) {
+      _hasDiscoveredBackend = true;
+    }
+  }
 
   static const Duration _requestTimeout = Duration(seconds: 18);
 
   ApiEndpointConfig _endpoint;
   String _apiToken;
+  bool _hasExplicitBaseUrl;
+  bool _hasDiscoveredBackend = false;
   final ApiHttpExecutor? _httpExecutor;
 
   String get baseUrl => _endpoint.baseUrl;
@@ -66,6 +73,8 @@ class ChatApiService {
 
   void updateBaseUrl(String? baseUrl) {
     _endpoint = ApiEndpointConfig.resolve(explicitBaseUrl: baseUrl);
+    _hasExplicitBaseUrl = (baseUrl?.trim().isNotEmpty == true);
+    _hasDiscoveredBackend = _hasExplicitBaseUrl;
   }
 
   void updateApiToken(String? apiToken) {
@@ -228,6 +237,9 @@ class ChatApiService {
     String path, {
     Map<String, dynamic>? body,
   }) async {
+    if (!_hasExplicitBaseUrl && !_hasDiscoveredBackend) {
+      await discoverBackend(explicitBaseUrl: null);
+    }
     return _requestJsonAtBase(
       _endpoint.baseUrl,
       method,
@@ -412,6 +424,7 @@ class ChatApiService {
       try {
         final payload = await _probeHealthAtBase(candidate);
         _endpoint = candidate;
+        _hasDiscoveredBackend = true;
         return {
           ...payload,
           'reachable': true,

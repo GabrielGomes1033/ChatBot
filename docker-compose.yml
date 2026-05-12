@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     ports:
       - "${NOVA_API_PORT:-8000}:${NOVA_API_PORT:-8000}"  # Acesse via NOVA_API_PORT (padrão 8000)
-    environment:
+environment:
       - NOVA_ADMIN_USER=admin
       - NOVA_ADMIN_PASSWORD=senha_forte_mude_apos_deploy!
       - PORT=${NOVA_API_PORT:-8000}

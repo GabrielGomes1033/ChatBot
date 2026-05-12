@@ -52,6 +52,22 @@ def _resolve_cors_settings() -> dict[str, object]:
                 "allow_credentials": True,
             }
 
+    # Permitir todas as origens por padrão quando NÃO config urado explicitamente
+    # Isto permite que a API funcione online em qualquer plataforma sem configuração adicional
+    allow_all = os.getenv("NOVA_API_CORS_ALLOW_ALL", "1").strip().lower() in {
+        "1",
+        "true",
+        "on",
+        "yes",
+    }
+    
+    if allow_all:
+        return {
+            "allow_origins": ["*"],
+            "allow_origin_regex": None,
+            "allow_credentials": True,
+        }
+
     return {
         "allow_origins": [],
         "allow_origin_regex": (

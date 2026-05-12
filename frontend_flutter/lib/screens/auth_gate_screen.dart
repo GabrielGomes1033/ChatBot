@@ -46,6 +46,7 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
   late final ChatApiService _api;
   late String _configuredApiBaseUrl;
   late String _configuredApiToken;
+  bool _hasDiscoveredBackend = false;
 
   bool _registerMode = false;
   bool _submitting = false;
@@ -64,6 +65,42 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
       baseUrl: _configuredApiBaseUrl,
       apiToken: _configuredApiToken,
     );
+    if (_configuredApiBaseUrl.isEmpty) {
+      _discoverBackendIfNeeded();
+    }
+  }
+
+  Future<void> _discoverBackendIfNeeded() async {
+    if (_configuredApiBaseUrl.isNotEmpty || _hasDiscoveredBackend) {
+      return;
+    }
+
+    setState(() {
+      _connectionFeedback = 'Procurando backend ativo...';
+    });
+
+    try {
+      final health = await _api.discoverBackend(explicitBaseUrl: null);
+      if (!mounted) return;
+      _hasDiscoveredBackend = true;
+      final discoveredBaseUrl = health['base_url']?.toString().trim() ?? '';
+      if (discoveredBaseUrl.isNotEmpty) {
+        _api.updateBaseUrl(discoveredBaseUrl);
+      }
+      setState(() {
+        _connectionFeedback = (health['reachable'] == true || health['ok'] == true)
+            ? 'Backend detectado em ${_api.baseUrl}.'
+            : 'Nenhum backend ativo encontrado. Revise a URL em "Configurar API".';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _connectionFeedback = error
+            .toString()
+            .replaceFirst('Exception: ', '')
+            .replaceAll('\n', ' ');
+      });
+    }
   }
 
   @override
@@ -114,6 +151,9 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
     });
 
     try {
+      if (_configuredApiBaseUrl.isEmpty && !_hasDiscoveredBackend) {
+        await _discoverBackendIfNeeded();
+      }
       final session = _registerMode
           ? await _api.registerUser(
               name: _registerNameController.text.trim(),
