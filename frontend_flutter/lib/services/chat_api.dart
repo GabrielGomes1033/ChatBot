@@ -238,7 +238,15 @@ class ChatApiService {
     Map<String, dynamic>? body,
   }) async {
     if (!_hasExplicitBaseUrl && !_hasDiscoveredBackend) {
-      await discoverBackend(explicitBaseUrl: null);
+      final health = await discoverBackend(explicitBaseUrl: null);
+      final reachable = health['reachable'] == true || health['ok'] == true;
+      if (!reachable) {
+        final message = health['message']?.toString().trim() ??
+            'Nenhum backend ativo encontrado para conectar.';
+        throw Exception(
+          'Falha de conexão com a API em ${_endpoint.baseUrl}$path. $message',
+        );
+      }
     }
     return _requestJsonAtBase(
       _endpoint.baseUrl,

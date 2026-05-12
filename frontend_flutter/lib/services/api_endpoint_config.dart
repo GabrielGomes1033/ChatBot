@@ -16,6 +16,8 @@ class ApiEndpointConfig {
     defaultValue: 8000,
   );
 
+  static const String productionBaseUrl = 'https://api.andradeegomes.com';
+
   static String localBaseUrl(
     String host, {
     String scheme = 'http',
@@ -92,6 +94,7 @@ class ApiEndpointConfig {
       PlatformCapabilities.isIOS ? 'ios_simulador_ou_local' : 'localhost',
     );
     push(localBaseUrl('localhost'), 'localhost_alias');
+    push(productionBaseUrl, 'online_producao');
     return out;
   }
 
