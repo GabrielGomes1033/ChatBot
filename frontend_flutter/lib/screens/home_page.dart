@@ -5598,6 +5598,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           opacity: context.isNovaDark ? 0.14 : 0.26,
           child: Column(
             children: [
+              _buildPinnedConversationCard(
+                compact: compact || smallMobile || chatCompressed,
+                compressed: chatCompressed,
+                microCompact: smallMobile,
+                ultrawide: ultrawide,
+              ),
               if (showShellLabel) ...[
                 SizedBox(height: smallMobile ? 10 : 12),
                 LayoutBuilder(
@@ -5728,7 +5734,301 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     required bool microCompact,
     required bool ultrawide,
   }) {
-    return const SizedBox.shrink();
+    final colors = context.novaColors;
+    final line = _pinnedConversationLine();
+    final actions = _actionsForLine(line);
+    final headline = line.summary?.trim().isNotEmpty == true
+        ? line.summary!.trim()
+        : _contextualGreetingHeadline();
+    final briefingSource = line.explanation?.trim().isNotEmpty == true
+        ? line.explanation!.trim()
+        : _contextualGreetingBriefing();
+    final briefing = _truncateRailText(
+      briefingSource,
+      limit: microCompact ? 96 : (compact ? 118 : 148),
+    );
+    final showBriefing = !compressed;
+    final showActions = actions.isNotEmpty && !compressed;
+    final logoSize =
+        microCompact ? 34.0 : (compact ? 38.0 : (ultrawide ? 44.0 : 40.0));
+    final titleFontSize =
+        microCompact ? 13.2 : (compact ? 14.0 : (ultrawide ? 15.8 : 14.8));
+    final briefingFontSize = microCompact ? 12.0 : (compact ? 12.4 : 13.0);
+    final actionLimit = microCompact ? 2 : 3;
+
+    final stateColor = switch (_assistantState) {
+      NovaAssistantState.idle => colors.textSecondary,
+      NovaAssistantState.thinking => const Color(0xFFB7791F),
+      NovaAssistantState.responding => colors.primary,
+      NovaAssistantState.suggesting => const Color(0xFF18805A),
+      NovaAssistantState.executing => const Color(0xFF0F766E),
+    };
+
+    Widget statePill() {
+      return Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: microCompact ? 9 : 10,
+          vertical: microCompact ? 5 : 6,
+        ),
+        decoration: BoxDecoration(
+          color: stateColor.withValues(
+            alpha: context.isNovaDark ? 0.18 : 0.12,
+          ),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: stateColor.withValues(alpha: 0.34),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                color: stateColor,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              _assistantState.label,
+              style: TextStyle(
+                color: stateColor,
+                fontSize: microCompact ? 11.0 : 11.4,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    Widget actionChip(
+      NovaConversationAction action, {
+      bool expand = false,
+    }) {
+      final chip = GestureDetector(
+        onTap: () => _handleConversationAction(action),
+        child: Container(
+          width: expand ? double.infinity : null,
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 12 : 13,
+            vertical: microCompact ? 9 : 10,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(
+              alpha: context.isNovaDark ? 0.05 : 0.46,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: colors.glassBorder.withValues(
+                alpha: context.isNovaDark ? 0.34 : 0.9,
+              ),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+            children: [
+              Icon(
+                action.icon ?? Icons.arrow_forward_rounded,
+                size: 15,
+                color: colors.textPrimary,
+              ),
+              const SizedBox(width: 7),
+              Flexible(
+                child: Text(
+                  action.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: microCompact ? 11.8 : 12.4,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (!expand) {
+        return chip;
+      }
+      return SizedBox(width: double.infinity, child: chip);
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(
+        ultrawide ? 18 : (microCompact ? 12 : 15),
+        ultrawide ? 16 : (microCompact ? 12 : 14),
+        ultrawide ? 18 : (microCompact ? 12 : 15),
+        ultrawide ? 16 : (microCompact ? 12 : 14),
+      ),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.lerp(
+              colors.surfaceStrong,
+              colors.brandSurface,
+              context.isNovaDark ? 0.42 : 0.22,
+            )!
+                .withValues(alpha: context.isNovaDark ? 0.92 : 0.86),
+            Color.lerp(
+              colors.surface,
+              colors.primarySoft,
+              context.isNovaDark ? 0.18 : 0.34,
+            )!
+                .withValues(alpha: context.isNovaDark ? 0.84 : 0.74),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(microCompact ? 22 : 24),
+        border: Border.all(
+          color: colors.glassBorder.withValues(
+            alpha: context.isNovaDark ? 0.36 : 0.94,
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(
+                alpha: context.isNovaDark ? 0.06 : 0.34,
+              ),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(
+                color: colors.glassBorder.withValues(
+                  alpha: context.isNovaDark ? 0.22 : 0.84,
+                ),
+              ),
+            ),
+            child: Text(
+              microCompact ? 'Agora' : 'Sessão ativa',
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: 10.8,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          SizedBox(height: microCompact ? 10 : 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stackStatePill = constraints.maxWidth < 340;
+              final content = Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  NovaMetalLogo(size: logoSize),
+                  SizedBox(width: microCompact ? 10 : 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          children: [
+                            Text(
+                              'NOVA',
+                              style: TextStyle(
+                                color: colors.textPrimary,
+                                fontSize: microCompact ? 12.6 : 13.4,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.1,
+                              ),
+                            ),
+                            Text(
+                              'ligada ao contexto',
+                              style: TextStyle(
+                                color: colors.textSecondary,
+                                fontSize: microCompact ? 10.8 : 11.2,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: microCompact ? 6 : 8),
+                        Text(
+                          headline,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: titleFontSize,
+                            fontWeight: FontWeight.w800,
+                            height: 1.18,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+
+              if (stackStatePill) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    content,
+                    const SizedBox(height: 10),
+                    statePill(),
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: content),
+                  const SizedBox(width: 10),
+                  statePill(),
+                ],
+              );
+            },
+          ),
+          if (showActions) ...[
+            SizedBox(height: microCompact ? 10 : 12),
+            if (microCompact)
+              Column(
+                children: actions
+                    .take(actionLimit)
+                    .map(
+                      (action) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: actionChip(action, expand: true),
+                      ),
+                    )
+                    .toList(),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: actions
+                    .take(actionLimit)
+                    .map((action) => actionChip(action))
+                    .toList(),
+              ),
+          ],
+          if (!microCompact && !compressed) ...[
+            const SizedBox(height: 10),
+            Text(
+              '${line.timestamp.hour.toString().padLeft(2, '0')}:${line.timestamp.minute.toString().padLeft(2, '0')}',
+              style: TextStyle(
+                color: colors.textSecondary.withValues(alpha: 0.76),
+                fontSize: 11.2,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   Widget _buildMemoryPanel({
