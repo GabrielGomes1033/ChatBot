@@ -1469,6 +1469,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         String? escolhida;
         for (final engine in lista) {
           final l = engine.toLowerCase();
+          if (l.contains('edge') || l.contains('microsoft')) {
+            escolhida = engine;
+            break;
+          }
           if (l.contains('samsung') ||
               l.contains('vocalizer') ||
               l.contains('acapela')) {
@@ -1494,6 +1498,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         'pt-br',
         'portuguese',
         'portugues',
+        'edge',
         'natural',
         'online',
         'enhanced',
