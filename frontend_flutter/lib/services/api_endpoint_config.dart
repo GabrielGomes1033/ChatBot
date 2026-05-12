@@ -52,6 +52,9 @@ class ApiEndpointConfig {
       return out;
     }
 
+    // Preferência para backend online em todos os ambientes.
+    push(productionBaseUrl, 'online_producao');
+
     if (kIsWeb) {
       final host = Uri.base.host.trim();
       final scheme = Uri.base.scheme == 'https' ? 'https' : 'http';
