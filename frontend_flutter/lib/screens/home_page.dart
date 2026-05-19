@@ -37,6 +37,7 @@ import '../widgets/nova_chat_input.dart';
 import '../widgets/nova_message_bubble.dart';
 import '../widgets/nova_sidebar_bio.dart';
 import '../widgets/nova_modules_panel.dart';
+import '../widgets/nova_top_bar.dart';
 import '../widgets/home/brain_widgets.dart';
 import '../widgets/home/chat_shell_widgets.dart' hide NovaTopBar;
 import '../widgets/home/dialog_widgets.dart';
@@ -61,6 +62,20 @@ class _NovaDevLanguageOption {
 
   final String label;
   final String value;
+}
+
+class _NovaFrontMenuAction {
+  const _NovaFrontMenuAction({
+    required this.label,
+    required this.description,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final String description;
+  final IconData icon;
+  final Future<void> Function() onTap;
 }
 
 class HomePage extends StatefulWidget {
@@ -256,6 +271,322 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return 'Contexto ativo: $project · memória operacional sincronizada';
     }
     return 'Contexto ativo: $project · pronto para sugerir e executar';
+  }
+
+  String _sessionRoleLabel() {
+    final role = widget.session.role.trim().toLowerCase();
+    switch (role) {
+      case 'admin':
+        return 'Administrador';
+      case 'developer':
+      case 'dev':
+        return 'Desenvolvedor';
+      default:
+        return 'Usuario';
+    }
+  }
+
+  Future<void> _runFloatingMenuAction(
+    BuildContext dialogContext,
+    Future<void> Function() action,
+  ) async {
+    Navigator.of(dialogContext).pop();
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    if (!mounted) return;
+    await action();
+  }
+
+  Widget _buildFloatingMenuGrid(
+    BuildContext dialogContext,
+    List<_NovaFrontMenuAction> actions,
+  ) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = 14.0;
+        final columns = constraints.maxWidth >= 760
+            ? 3
+            : (constraints.maxWidth >= 430 ? 2 : 1);
+        final cardWidth = columns == 1
+            ? constraints.maxWidth
+            : (constraints.maxWidth - (gap * (columns - 1))) / columns;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final action in actions)
+              SizedBox(
+                width: cardWidth,
+                child: NovaFloatingMenuActionCard(
+                  label: action.label,
+                  description: action.description,
+                  icon: action.icon,
+                  onTap: () =>
+                      _runFloatingMenuAction(dialogContext, action.onTap),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<bool> _confirmLogout() async {
+    if (!mounted) return false;
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) {
+            final colors = dialogContext.novaColors;
+            return NovaPanelDialog(
+              title: 'ENCERRAR SESSAO',
+              child: NovaDialogContent(
+                maxWidth: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Deseja sair da conta atual agora? A sessao local sera encerrada neste dispositivo.',
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 13,
+                        height: 1.45,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () =>
+                                Navigator.of(dialogContext).pop(false),
+                            child: const Text('Cancelar'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: () =>
+                                Navigator.of(dialogContext).pop(true),
+                            icon: const Icon(Icons.logout_rounded),
+                            label: const Text('Sair'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ) ??
+        false;
+    return confirmed;
+  }
+
+  Future<void> _openQuickMenu() async {
+    if (!mounted) return;
+    final actions = <_NovaFrontMenuAction>[
+      _NovaFrontMenuAction(
+        label: 'Brain Vault',
+        description: 'Abrir memórias, grafo e notas operacionais do contexto.',
+        icon: Icons.psychology_alt_rounded,
+        onTap: _openBrainDialog,
+      ),
+      _NovaFrontMenuAction(
+        label: 'Documentos',
+        description: 'Analisar arquivos, imagens e registrar aprendizado.',
+        icon: Icons.description_rounded,
+        onTap: _openDocumentAnalysisDialog,
+      ),
+      _NovaFrontMenuAction(
+        label: 'Dev',
+        description: 'Gerar código e destravar tarefas do produto mais rápido.',
+        icon: Icons.code_rounded,
+        onTap: () => _openDevGeneratorFlow(
+          initialPrompt: _devPromptSeed(),
+        ),
+      ),
+      _NovaFrontMenuAction(
+        label: 'Ensinar NOVA',
+        description: 'Salvar novos gatilhos, respostas e conhecimento útil.',
+        icon: Icons.school_rounded,
+        onTap: _openTeachDialog,
+      ),
+      _NovaFrontMenuAction(
+        label: 'Base',
+        description: 'Editar a base de conhecimento e revisar entradas atuais.',
+        icon: Icons.auto_stories_rounded,
+        onTap: _openKnowledgeDialog,
+      ),
+      _NovaFrontMenuAction(
+        label: 'Lembretes',
+        description: 'Criar alertas locais e revisar pendências do dia.',
+        icon: Icons.notifications_active_rounded,
+        onTap: _openRemindersDialog,
+      ),
+      _NovaFrontMenuAction(
+        label: 'Compatibilidade',
+        description: 'Ver recursos disponíveis neste dispositivo agora.',
+        icon: Icons.devices_rounded,
+        onTap: _openCompatibilityDialog,
+      ),
+      _NovaFrontMenuAction(
+        label: 'Configurações',
+        description: 'Ajustar voz, API, wake word e preferências do app.',
+        icon: Icons.tune_rounded,
+        onTap: _openConfigDialog,
+      ),
+    ];
+
+    final barrierColor = Colors.black.withValues(
+      alpha: context.isNovaDark ? 0.54 : 0.28,
+    );
+
+    await showDialog<void>(
+      context: context,
+      barrierColor: barrierColor,
+      builder: (dialogContext) {
+        final colors = dialogContext.novaColors;
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(12),
+          child: NovaFloatingMenuShell(
+            title: 'Menu rapido',
+            subtitle:
+                'Atalhos do workspace da NOVA para memoria, documentos, dev e configuracoes sem sair do chat.',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                NovaPanelSection(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Sessao em andamento',
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _conversationContextLabel(),
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 12.8,
+                          height: 1.45,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _buildFloatingMenuGrid(dialogContext, actions),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openSessionMenu() async {
+    if (!mounted) return;
+    final actions = <_NovaFrontMenuAction>[
+      _NovaFrontMenuAction(
+        label: 'Configurações',
+        description: 'Revisar voz, API, segurança e preferências da sessão.',
+        icon: Icons.settings_suggest_rounded,
+        onTap: _openConfigDialog,
+      ),
+      _NovaFrontMenuAction(
+        label: widget.session.isAdmin ? 'Usuarios' : 'Ajuda',
+        description: widget.session.isAdmin
+            ? 'Gerenciar acessos e contas cadastradas no app.'
+            : 'Abrir a central com comandos e atalhos desta sessao.',
+        icon: widget.session.isAdmin
+            ? Icons.group_outlined
+            : Icons.help_outline_rounded,
+        onTap: widget.session.isAdmin ? _openUsersDialog : _openHelpDialog,
+      ),
+      _NovaFrontMenuAction(
+        label: 'Sincronizar',
+        description: 'Atualizar backend, memórias, lembretes e status atual.',
+        icon: Icons.sync_rounded,
+        onTap: () async {
+          await _refreshBackendConnection();
+          await _loadReminders();
+          await _refreshJarvisFoundation();
+          if (!mounted) return;
+          _showSnack('Sessao sincronizada com o estado mais recente.');
+        },
+      ),
+      _NovaFrontMenuAction(
+        label: 'Encerrar sessao',
+        description: 'Sair da conta atual neste dispositivo com confirmacao.',
+        icon: Icons.logout_rounded,
+        onTap: () async {
+          final confirmed = await _confirmLogout();
+          if (!confirmed) return;
+          widget.onLogout();
+        },
+      ),
+    ];
+
+    final barrierColor = Colors.black.withValues(
+      alpha: context.isNovaDark ? 0.54 : 0.28,
+    );
+
+    await showDialog<void>(
+      context: context,
+      barrierColor: barrierColor,
+      builder: (dialogContext) {
+        final colors = dialogContext.novaColors;
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(12),
+          child: NovaFloatingMenuShell(
+            title: _resolvedUserName(),
+            subtitle:
+                '${widget.session.email.isEmpty ? 'Sessao autenticada' : widget.session.email} · ${_sessionRoleLabel()}',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                NovaPanelSection(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Panorama da sessao',
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _systemStatus,
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 12.8,
+                          height: 1.45,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _buildFloatingMenuGrid(dialogContext, actions),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   String _contextualGreetingHeadline() {
@@ -884,15 +1215,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     });
   }
 
-  NovaChatLine _pinnedConversationLine() {
-    return _lastAssistantLine() ?? _buildGreetingLine();
-  }
-
   List<NovaChatLine> _visibleChatLines() {
     if (_chat.isEmpty) return const [];
-    if (!_chat.first.fromUser) {
-      return _chat.skip(1).toList();
-    }
     return List<NovaChatLine>.from(_chat);
   }
 
@@ -2567,6 +2891,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (t == 'abrir usuarios' || t == 'open usuarios') {
       _openUsersDialog();
       return 'Abrindo usuários.';
+    }
+    if (t == 'abrir menu' || t == 'abrir menu rapido' || t == 'abrir painel') {
+      _openQuickMenu();
+      return 'Abrindo menu rapido.';
+    }
+    if (t == 'abrir perfil' || t == 'abrir sessao' || t == 'abrir conta') {
+      _openSessionMenu();
+      return 'Abrindo painel da sessao.';
     }
     if (t == 'abrir ensinar' || t == 'abrir ensino') {
       _openTeachDialog();
@@ -5580,12 +5912,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     bool ultrawide = false,
   }) {
     final visibleLines = _visibleChatLines();
-    final colors = context.novaColors;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final chatCompressed = constraints.maxHeight < 360;
-        final showShellLabel = !chatCompressed;
-
         return GlassContainer(
           borderRadius: smallMobile ? 30 : (ultrawide ? 36 : 34),
           padding: EdgeInsets.fromLTRB(
@@ -5596,438 +5924,56 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ),
           blur: ultrawide ? 26 : 24,
           opacity: context.isNovaDark ? 0.14 : 0.26,
-          child: Column(
-            children: [
-              _buildPinnedConversationCard(
-                compact: compact || smallMobile || chatCompressed,
-                compressed: chatCompressed,
-                microCompact: smallMobile,
-                ultrawide: ultrawide,
-              ),
-              if (showShellLabel) ...[
-                SizedBox(height: smallMobile ? 10 : 12),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final stackHeader = constraints.maxWidth < 300;
-                    final label = Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.forum_outlined,
-                          size: 15,
-                          color: colors.textSecondary,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Chat ativo',
-                          style: TextStyle(
-                            color: colors.textSecondary,
-                            fontSize: smallMobile ? 12.0 : 12.6,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    );
-                    final count = Text(
-                      visibleLines.isEmpty
-                          ? 'Aguardando'
-                          : '${visibleLines.length} registro${visibleLines.length == 1 ? '' : 's'}',
-                      style: TextStyle(
-                        color: colors.textSecondary.withValues(alpha: 0.86),
-                        fontSize: smallMobile ? 11.4 : 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    );
-
-                    if (stackHeader) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          label,
-                          const SizedBox(height: 6),
-                          count,
-                        ],
-                      );
-                    }
-
-                    return Row(
-                      children: [
-                        label,
-                        const Spacer(),
-                        count,
-                      ],
-                    );
-                  },
-                ),
-                SizedBox(height: smallMobile ? 10 : 12),
-                Container(
-                  height: 1,
-                  color: colors.glassBorder.withValues(
-                    alpha: context.isNovaDark ? 0.34 : 0.72,
+          child: ListView.builder(
+            reverse: true,
+            padding: EdgeInsets.fromLTRB(
+              ultrawide ? 6 : (smallMobile ? 0 : 2),
+              0,
+              ultrawide ? 6 : (smallMobile ? 0 : 2),
+              2,
+            ),
+            itemCount: visibleLines.length + (_sending ? 1 : 0),
+            itemBuilder: (context, index) {
+              if (_sending && index == 0) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: NovaMessageBubble(
+                    fromUser: false,
+                    text: _assistantState == NovaAssistantState.executing
+                        ? 'Estou executando o próximo passo e organizando a resposta.'
+                        : 'Estou entendendo o contexto antes de responder.',
+                    timestamp: DateTime.now(),
+                    isLive: true,
                   ),
-                ),
-                SizedBox(height: smallMobile ? 10 : 12),
-              ] else
-                const SizedBox(height: 8),
-              Expanded(
-                child: ListView.builder(
-                  reverse: true,
-                  padding: EdgeInsets.fromLTRB(
-                    ultrawide ? 6 : (smallMobile ? 0 : 2),
-                    0,
-                    ultrawide ? 6 : (smallMobile ? 0 : 2),
-                    2,
-                  ),
-                  itemCount: visibleLines.length + (_sending ? 1 : 0),
-                  itemBuilder: (context, index) {
-                    if (_sending && index == 0) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: NovaMessageBubble(
-                          fromUser: false,
-                          text: _assistantState == NovaAssistantState.executing
-                              ? 'Estou executando o próximo passo e organizando a resposta.'
-                              : 'Estou entendendo o contexto antes de responder.',
-                          timestamp: DateTime.now(),
-                          isLive: true,
-                        ),
-                      );
-                    }
-
-                    final adjustedIndex = _sending ? index - 1 : index;
-                    final line =
-                        visibleLines[visibleLines.length - 1 - adjustedIndex];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 14),
-                      child: NovaMessageBubble(
-                        fromUser: line.fromUser,
-                        text: line.text,
-                        summary: line.summary,
-                        timestamp: line.timestamp,
-                        viewLabel: 'Ver codigo',
-                        onViewTap: line.copyText?.trim().isNotEmpty == true
-                            ? () => _previewGeneratedCode(line)
-                            : null,
-                        copyLabel: line.copyLabel,
-                        onCopyTap: line.copyText?.trim().isNotEmpty == true
-                            ? () => _copyGeneratedCode(line)
-                            : null,
-                        actions:
-                            line.fromUser ? const [] : _actionsForLine(line),
-                        onActionTap:
-                            line.fromUser ? null : _handleConversationAction,
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildPinnedConversationCard({
-    required bool compact,
-    required bool compressed,
-    required bool microCompact,
-    required bool ultrawide,
-  }) {
-    final colors = context.novaColors;
-    final line = _pinnedConversationLine();
-    final actions = _actionsForLine(line);
-    final headline = line.summary?.trim().isNotEmpty == true
-        ? line.summary!.trim()
-        : _contextualGreetingHeadline();
-    final briefingSource = line.explanation?.trim().isNotEmpty == true
-        ? line.explanation!.trim()
-        : _contextualGreetingBriefing();
-    final briefing = _truncateRailText(
-      briefingSource,
-      limit: microCompact ? 96 : (compact ? 118 : 148),
-    );
-    final showBriefing = !compressed;
-    final showActions = actions.isNotEmpty && !compressed;
-    final logoSize =
-        microCompact ? 34.0 : (compact ? 38.0 : (ultrawide ? 44.0 : 40.0));
-    final titleFontSize =
-        microCompact ? 13.2 : (compact ? 14.0 : (ultrawide ? 15.8 : 14.8));
-    final briefingFontSize = microCompact ? 12.0 : (compact ? 12.4 : 13.0);
-    final actionLimit = microCompact ? 2 : 3;
-
-    final stateColor = switch (_assistantState) {
-      NovaAssistantState.idle => colors.textSecondary,
-      NovaAssistantState.thinking => const Color(0xFFB7791F),
-      NovaAssistantState.responding => colors.primary,
-      NovaAssistantState.suggesting => const Color(0xFF18805A),
-      NovaAssistantState.executing => const Color(0xFF0F766E),
-    };
-
-    Widget statePill() {
-      return Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: microCompact ? 9 : 10,
-          vertical: microCompact ? 5 : 6,
-        ),
-        decoration: BoxDecoration(
-          color: stateColor.withValues(
-            alpha: context.isNovaDark ? 0.18 : 0.12,
-          ),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: stateColor.withValues(alpha: 0.34),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 7,
-              height: 7,
-              decoration: BoxDecoration(
-                color: stateColor,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              _assistantState.label,
-              style: TextStyle(
-                color: stateColor,
-                fontSize: microCompact ? 11.0 : 11.4,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    Widget actionChip(
-      NovaConversationAction action, {
-      bool expand = false,
-    }) {
-      final chip = GestureDetector(
-        onTap: () => _handleConversationAction(action),
-        child: Container(
-          width: expand ? double.infinity : null,
-          padding: EdgeInsets.symmetric(
-            horizontal: compact ? 12 : 13,
-            vertical: microCompact ? 9 : 10,
-          ),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(
-              alpha: context.isNovaDark ? 0.05 : 0.46,
-            ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: colors.glassBorder.withValues(
-                alpha: context.isNovaDark ? 0.34 : 0.9,
-              ),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
-            children: [
-              Icon(
-                action.icon ?? Icons.arrow_forward_rounded,
-                size: 15,
-                color: colors.textPrimary,
-              ),
-              const SizedBox(width: 7),
-              Flexible(
-                child: Text(
-                  action.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: microCompact ? 11.8 : 12.4,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-      if (!expand) {
-        return chip;
-      }
-      return SizedBox(width: double.infinity, child: chip);
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.fromLTRB(
-        ultrawide ? 18 : (microCompact ? 12 : 15),
-        ultrawide ? 16 : (microCompact ? 12 : 14),
-        ultrawide ? 18 : (microCompact ? 12 : 15),
-        ultrawide ? 16 : (microCompact ? 12 : 14),
-      ),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color.lerp(
-              colors.surfaceStrong,
-              colors.brandSurface,
-              context.isNovaDark ? 0.42 : 0.22,
-            )!
-                .withValues(alpha: context.isNovaDark ? 0.92 : 0.86),
-            Color.lerp(
-              colors.surface,
-              colors.primarySoft,
-              context.isNovaDark ? 0.18 : 0.34,
-            )!
-                .withValues(alpha: context.isNovaDark ? 0.84 : 0.74),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(microCompact ? 22 : 24),
-        border: Border.all(
-          color: colors.glassBorder.withValues(
-            alpha: context.isNovaDark ? 0.36 : 0.94,
-          ),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(
-                alpha: context.isNovaDark ? 0.06 : 0.34,
-              ),
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(
-                color: colors.glassBorder.withValues(
-                  alpha: context.isNovaDark ? 0.22 : 0.84,
-                ),
-              ),
-            ),
-            child: Text(
-              microCompact ? 'Agora' : 'Sessão ativa',
-              style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: 10.8,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          SizedBox(height: microCompact ? 10 : 12),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final stackStatePill = constraints.maxWidth < 340;
-              final content = Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  NovaMetalLogo(size: logoSize),
-                  SizedBox(width: microCompact ? 10 : 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 4,
-                          children: [
-                            Text(
-                              'NOVA',
-                              style: TextStyle(
-                                color: colors.textPrimary,
-                                fontSize: microCompact ? 12.6 : 13.4,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.1,
-                              ),
-                            ),
-                            Text(
-                              'ligada ao contexto',
-                              style: TextStyle(
-                                color: colors.textSecondary,
-                                fontSize: microCompact ? 10.8 : 11.2,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: microCompact ? 6 : 8),
-                        Text(
-                          headline,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: colors.textPrimary,
-                            fontSize: titleFontSize,
-                            fontWeight: FontWeight.w800,
-                            height: 1.18,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              );
-
-              if (stackStatePill) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    content,
-                    const SizedBox(height: 10),
-                    statePill(),
-                  ],
                 );
               }
 
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: content),
-                  const SizedBox(width: 10),
-                  statePill(),
-                ],
+              final adjustedIndex = _sending ? index - 1 : index;
+              final line =
+                  visibleLines[visibleLines.length - 1 - adjustedIndex];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: NovaMessageBubble(
+                  fromUser: line.fromUser,
+                  text: line.text,
+                  summary: line.summary,
+                  timestamp: line.timestamp,
+                  viewLabel: 'Ver codigo',
+                  onViewTap: line.copyText?.trim().isNotEmpty == true
+                      ? () => _previewGeneratedCode(line)
+                      : null,
+                  copyLabel: line.copyLabel,
+                  onCopyTap: line.copyText?.trim().isNotEmpty == true
+                      ? () => _copyGeneratedCode(line)
+                      : null,
+                  actions: line.fromUser ? const [] : _actionsForLine(line),
+                  onActionTap: line.fromUser ? null : _handleConversationAction,
+                ),
               );
             },
           ),
-          if (showActions) ...[
-            SizedBox(height: microCompact ? 10 : 12),
-            if (microCompact)
-              Column(
-                children: actions
-                    .take(actionLimit)
-                    .map(
-                      (action) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: actionChip(action, expand: true),
-                      ),
-                    )
-                    .toList(),
-              )
-            else
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: actions
-                    .take(actionLimit)
-                    .map((action) => actionChip(action))
-                    .toList(),
-              ),
-          ],
-          if (!microCompact && !compressed) ...[
-            const SizedBox(height: 10),
-            Text(
-              '${line.timestamp.hour.toString().padLeft(2, '0')}:${line.timestamp.minute.toString().padLeft(2, '0')}',
-              style: TextStyle(
-                color: colors.textSecondary.withValues(alpha: 0.76),
-                fontSize: 11.2,
-              ),
-            ),
-          ],
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -6282,6 +6228,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final composerGap = compressed ? 10.0 : (microCompact ? 8.0 : 14.0);
     return Column(
       children: [
+        NovaTopBar(
+          onMenuTap: _openQuickMenu,
+          onUserTap: _openSessionMenu,
+          status: _assistantState,
+          contextText: _conversationContextLabel(),
+          userLabel: _resolvedUserName(),
+        ),
         SizedBox(height: topGap),
         Expanded(
           child: _buildChatThread(
