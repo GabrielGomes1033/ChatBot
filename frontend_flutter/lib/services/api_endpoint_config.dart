@@ -17,6 +17,10 @@ class ApiEndpointConfig {
   );
 
   static const String productionBaseUrl = 'https://api.andradeegomes.com';
+  static const String fallbackBaseUrl = String.fromEnvironment(
+    'NOVA_API_FALLBACK_URL',
+    defaultValue: productionBaseUrl,
+  );
 
   static String localBaseUrl(
     String host, {
@@ -27,6 +31,46 @@ class ApiEndpointConfig {
 
   static String exampleManualBaseUrl([String host = '192.168.0.25']) {
     return localBaseUrl(host);
+  }
+
+  static bool _isLoopbackHost(String host) {
+    final normalized = host.trim().toLowerCase();
+    return normalized == 'localhost' ||
+        normalized == '127.0.0.1' ||
+        normalized == '::1';
+  }
+
+  static bool _isPrivateIpv4Host(String host) {
+    final parts = host.trim().split('.');
+    if (parts.length != 4) return false;
+
+    final octets = <int>[];
+    for (final part in parts) {
+      final value = int.tryParse(part);
+      if (value == null || value < 0 || value > 255) {
+        return false;
+      }
+      octets.add(value);
+    }
+
+    if (octets[0] == 10) return true;
+    if (octets[0] == 127) return true;
+    if (octets[0] == 192 && octets[1] == 168) return true;
+    if (octets[0] == 169 && octets[1] == 254) return true;
+    if (octets[0] == 172 && octets[1] >= 16 && octets[1] <= 31) return true;
+    return false;
+  }
+
+  static bool _isLocalHost(String host) {
+    final normalized = host.trim().toLowerCase();
+    if (normalized.isEmpty) return false;
+    return _isLoopbackHost(normalized) ||
+        _isPrivateIpv4Host(normalized) ||
+        normalized.endsWith('.local');
+  }
+
+  static String _defaultSchemeForHost(String host) {
+    return _isLocalHost(host) ? 'http' : 'https';
   }
 
   static List<ApiEndpointConfig> candidates({String? explicitBaseUrl}) {
@@ -52,38 +96,34 @@ class ApiEndpointConfig {
       return out;
     }
 
-    // Preferência para backend online em todos os ambientes.
-    push(productionBaseUrl, 'online_producao');
+    final normalizedFallbackUrl = normalizeBaseUrl(fallbackBaseUrl);
 
     if (kIsWeb) {
       final host = Uri.base.host.trim();
       final scheme = Uri.base.scheme == 'https' ? 'https' : 'http';
-      final isLocal = host == 'localhost' ||
-          host == '127.0.0.1' ||
-          host.startsWith('192.168.') ||
-          host.startsWith('10.') ||
-          host.startsWith('172.');
-
-      if (host == 'api.andradeegomes.com') {
-        push('https://api.andradeegomes.com', 'web_producao');
-      }
-
-      if (host == 'andradeegomes.com' || host.endsWith('.andradeegomes.com')) {
-        push('https://api.andradeegomes.com', 'web_subdominio');
-      }
+      final isLocal = _isLocalHost(host);
 
       if (host.isNotEmpty) {
-        push(localBaseUrl(host, scheme: scheme), 'web_mesmo_host_api_porta');
         push(Uri.base.origin, 'web_mesma_origem');
         push('$scheme://$host', 'web_host_atual');
       }
 
       if (isLocal) {
-        push(localBaseUrl('127.0.0.1', scheme: scheme), 'web_loopback_api_porta');
-        push(localBaseUrl('localhost', scheme: scheme), 'web_localhost_api_porta');
+        push(localBaseUrl(host, scheme: scheme), 'web_mesmo_host_api_porta');
+        push(localBaseUrl('127.0.0.1', scheme: scheme),
+            'web_loopback_api_porta');
+        push(localBaseUrl('localhost', scheme: scheme),
+            'web_localhost_api_porta');
         push('$scheme://127.0.0.1', 'web_loopback_sem_porta');
         push('$scheme://localhost', 'web_localhost_sem_porta');
       }
+
+      push(normalizedFallbackUrl, 'online_fallback');
+      return out;
+    }
+
+    if (kReleaseMode) {
+      push(normalizedFallbackUrl, 'online_fallback');
     }
 
     if (PlatformCapabilities.isAndroid) {
@@ -97,7 +137,9 @@ class ApiEndpointConfig {
       PlatformCapabilities.isIOS ? 'ios_simulador_ou_local' : 'localhost',
     );
     push(localBaseUrl('localhost'), 'localhost_alias');
-    push(productionBaseUrl, 'online_producao');
+    if (!kReleaseMode) {
+      push(normalizedFallbackUrl, 'online_fallback');
+    }
     return out;
   }
 
@@ -110,7 +152,10 @@ class ApiEndpointConfig {
     if (value.isEmpty) return '';
 
     if (!value.contains('://')) {
-      value = 'http://$value';
+      final inferredHost = Uri.tryParse('https://$value')?.host.trim() ?? '';
+      final scheme =
+          inferredHost.isEmpty ? 'https' : _defaultSchemeForHost(inferredHost);
+      value = '$scheme://$value';
     }
 
     final uri = Uri.tryParse(value);

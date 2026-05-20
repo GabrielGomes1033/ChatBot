@@ -88,7 +88,8 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
         _api.updateBaseUrl(discoveredBaseUrl);
       }
       setState(() {
-        _connectionFeedback = (health['reachable'] == true || health['ok'] == true)
+        _connectionFeedback = (health['reachable'] == true ||
+                health['ok'] == true)
             ? 'Backend detectado em ${_api.baseUrl}.'
             : 'Nenhum backend ativo encontrado. Revise a URL em "Configurar API".';
       });
@@ -390,40 +391,63 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
 
   Widget _buildModeToggle(BuildContext context) {
     final colors = context.novaColors;
-    return Container(
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: context.isNovaDark ? 0.08 : 0.38),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: colors.glassBorder),
-        boxShadow: [
-          BoxShadow(
-            color: colors.shadow.withValues(
-              alpha: context.isNovaDark ? 0.26 : 0.08,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 280;
+        return Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(
+              alpha: context.isNovaDark ? 0.08 : 0.38,
             ),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: colors.glassBorder),
+            boxShadow: [
+              BoxShadow(
+                color: colors.shadow.withValues(
+                  alpha: context.isNovaDark ? 0.26 : 0.08,
+                ),
+                blurRadius: 18,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _ModeChip(
-              label: 'Entrar',
-              selected: !_registerMode,
-              onTap: () => _setRegisterMode(false),
-            ),
-          ),
-          Expanded(
-            child: _ModeChip(
-              label: 'Criar conta',
-              selected: _registerMode,
-              onTap: () => _setRegisterMode(true),
-            ),
-          ),
-        ],
-      ),
+          child: stacked
+              ? Column(
+                  children: [
+                    _ModeChip(
+                      label: 'Entrar',
+                      selected: !_registerMode,
+                      onTap: () => _setRegisterMode(false),
+                    ),
+                    const SizedBox(height: 6),
+                    _ModeChip(
+                      label: 'Criar conta',
+                      selected: _registerMode,
+                      onTap: () => _setRegisterMode(true),
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Expanded(
+                      child: _ModeChip(
+                        label: 'Entrar',
+                        selected: !_registerMode,
+                        onTap: () => _setRegisterMode(false),
+                      ),
+                    ),
+                    Expanded(
+                      child: _ModeChip(
+                        label: 'Criar conta',
+                        selected: _registerMode,
+                        onTap: () => _setRegisterMode(true),
+                      ),
+                    ),
+                  ],
+                ),
+        );
+      },
     );
   }
 
@@ -779,135 +803,165 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
 
   Widget _buildHero(BuildContext context, {required bool compact}) {
     final colors = context.novaColors;
+    final viewportWidth = MediaQuery.sizeOf(context).width;
+    final tiny = viewportWidth < 360;
     return ConstrainedBox(
       constraints: BoxConstraints(
         minHeight: compact ? 0 : 640,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(
-                alpha: context.isNovaDark ? 0.08 : 0.42,
-              ),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: colors.glassBorder),
-            ),
-            child: Text(
-              'Workspace premium NOVA',
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: compact ? 11.6 : 12.2,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.2,
-              ),
-            ),
-          ),
-          SizedBox(height: compact ? 18 : 22),
-          Row(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final stackIdentity = compact && constraints.maxWidth < 300;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              NovaMetalLogo(size: compact ? 74 : 86),
-              const SizedBox(width: 14),
-              Expanded(
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(
+                    alpha: context.isNovaDark ? 0.08 : 0.42,
+                  ),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: colors.glassBorder),
+                ),
                 child: Text(
-                  'NOVA',
+                  'Workspace premium NOVA',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: colors.textPrimary,
-                    fontSize: compact ? 26 : 31,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.8,
+                    fontSize: compact ? 11.4 : 12.2,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.2,
                   ),
+                ),
+              ),
+              SizedBox(height: compact ? 18 : 22),
+              if (stackIdentity)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    NovaMetalLogo(size: tiny ? 66 : 74),
+                    const SizedBox(height: 12),
+                    Text(
+                      'NOVA',
+                      style: TextStyle(
+                        color: colors.textPrimary,
+                        fontSize: tiny ? 24 : 26,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.8,
+                      ),
+                    ),
+                  ],
+                )
+              else
+                Row(
+                  children: [
+                    NovaMetalLogo(size: compact ? 74 : 86),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        'NOVA',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: compact ? 26 : 31,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.8,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              SizedBox(height: compact ? 18 : 28),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: compact ? 540 : 460),
+                child: Text(
+                  'NOVA — sofisticada por design, poderosa por inteligência.',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: compact ? (tiny ? 22 : 26) : 34,
+                    fontWeight: FontWeight.w800,
+                    height: 1.08,
+                    letterSpacing: compact && tiny ? -0.6 : -1.0,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: compact ? 560 : 500),
+                child: Text(
+                  'Entre com sua conta para manter contexto, memória, personalidade e fluxo de trabalho sincronizados desde o primeiro acesso.',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: compact ? (tiny ? 13.0 : 13.6) : 15.2,
+                    height: 1.58,
+                  ),
+                ),
+              ),
+              if (!compact) const Spacer(),
+              SizedBox(height: compact ? 22 : 0),
+              Container(
+                constraints:
+                    BoxConstraints(maxWidth: compact ? double.infinity : 460),
+                padding: EdgeInsets.all(compact ? 16 : 18),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(
+                    alpha: context.isNovaDark ? 0.06 : 0.34,
+                  ),
+                  borderRadius: BorderRadius.circular(26),
+                  border: Border.all(color: colors.glassBorder),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: compact ? 40 : 44,
+                      height: compact ? 40 : 44,
+                      decoration: BoxDecoration(
+                        color: colors.primarySoft.withValues(alpha: 0.22),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(
+                        Icons.auto_awesome_rounded,
+                        color: colors.primary,
+                        size: compact ? 20 : 22,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Uma conta, todos os seus dispositivos',
+                            style: TextStyle(
+                              color: colors.textPrimary,
+                              fontSize: compact ? 14.0 : 15.2,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Android, iOS, web e desktop com a mesma memória, o mesmo contexto e a mesma personalidade ativa.',
+                            style: TextStyle(
+                              color: colors.textSecondary,
+                              fontSize: compact ? 12.4 : 13.2,
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
-          ),
-          SizedBox(height: compact ? 18 : 28),
-          ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: compact ? 540 : 460),
-            child: Text(
-              'NOVA — sofisticada por design, poderosa por inteligência.',
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: compact ? 26 : 34,
-                fontWeight: FontWeight.w800,
-                height: 1.08,
-                letterSpacing: -1.0,
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: compact ? 560 : 500),
-            child: Text(
-              'Entre com sua conta para manter contexto, memória, personalidade e fluxo de trabalho sincronizados desde o primeiro acesso.',
-              style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: compact ? 13.6 : 15.2,
-                height: 1.58,
-              ),
-            ),
-          ),
-          if (!compact) const Spacer(),
-          SizedBox(height: compact ? 22 : 0),
-          Container(
-            constraints:
-                BoxConstraints(maxWidth: compact ? double.infinity : 460),
-            padding: EdgeInsets.all(compact ? 16 : 18),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(
-                alpha: context.isNovaDark ? 0.06 : 0.34,
-              ),
-              borderRadius: BorderRadius.circular(26),
-              border: Border.all(color: colors.glassBorder),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: compact ? 40 : 44,
-                  height: compact ? 40 : 44,
-                  decoration: BoxDecoration(
-                    color: colors.primarySoft.withValues(alpha: 0.22),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(
-                    Icons.auto_awesome_rounded,
-                    color: colors.primary,
-                    size: compact ? 20 : 22,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Uma conta, todos os seus dispositivos',
-                        style: TextStyle(
-                          color: colors.textPrimary,
-                          fontSize: compact ? 14.2 : 15.2,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.2,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Android, iOS, web e desktop com a mesma memória, o mesmo contexto e a mesma personalidade ativa.',
-                        style: TextStyle(
-                          color: colors.textSecondary,
-                          fontSize: compact ? 12.6 : 13.2,
-                          height: 1.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -1034,17 +1088,26 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final compact = constraints.maxWidth < 1100;
+                final compact =
+                    constraints.maxWidth < 1100 || constraints.maxHeight < 760;
+                final veryCompact = constraints.maxWidth < 360;
                 final panel = ConstrainedBox(
                   constraints: BoxConstraints(
-                    maxWidth: compact ? 720 : 1220,
+                    maxWidth: compact
+                        ? (veryCompact ? constraints.maxWidth : 720)
+                        : 1220,
                   ),
                   child: _buildUnifiedPanel(context, compact: compact),
                 );
 
                 if (compact) {
                   return SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+                    padding: EdgeInsets.fromLTRB(
+                      veryCompact ? 10 : 16,
+                      veryCompact ? 14 : 20,
+                      veryCompact ? 10 : 16,
+                      veryCompact ? 18 : 24,
+                    ),
                     child: Center(child: panel),
                   );
                 }
@@ -1102,6 +1165,9 @@ class _ModeChip extends StatelessWidget {
         child: Center(
           child: Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
             style: TextStyle(
               color: selected ? Colors.white : colors.textPrimary,
               fontSize: 13.6,

@@ -35,9 +35,16 @@ class NovaMessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.novaColors;
+    final viewportWidth = MediaQuery.sizeOf(context).width;
     final messageText = fromUser
         ? text
         : (text.trim().isNotEmpty ? text.trim() : (summary?.trim() ?? ''));
+    final preferredMaxWidth = fromUser ? 560.0 : 660.0;
+    final relativeMaxWidth =
+        fromUser ? viewportWidth * 0.84 : viewportWidth * 0.88;
+    final bubbleMaxWidth = relativeMaxWidth < preferredMaxWidth
+        ? relativeMaxWidth
+        : preferredMaxWidth;
 
     final bubble = GlassContainer(
       borderRadius: 28,
@@ -154,7 +161,7 @@ class NovaMessageBubble extends StatelessWidget {
       alignment: fromUser ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: fromUser ? 560 : 660,
+          maxWidth: bubbleMaxWidth,
         ),
         child: bubble,
       ),

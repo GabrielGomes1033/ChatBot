@@ -71,7 +71,7 @@ class NovaTopBar extends StatelessWidget {
                     SizedBox(height: narrow ? 3 : 4),
                     Text(
                       contextText,
-                      maxLines: narrow ? 2 : (wide ? 2 : 1),
+                      maxLines: veryNarrow ? 3 : (narrow ? 2 : (wide ? 2 : 1)),
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: colors.textSecondary,

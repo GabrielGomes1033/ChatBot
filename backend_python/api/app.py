@@ -29,6 +29,7 @@ except Exception:
 
 
 def _resolve_cors_settings() -> dict[str, object]:
+    any_http_origin_regex = r"^https?://.+$"
     raw = os.getenv("NOVA_API_CORS_ORIGINS", "").strip()
 
     if raw:
@@ -40,8 +41,8 @@ def _resolve_cors_settings() -> dict[str, object]:
 
         if "*" in origins:
             return {
-                "allow_origins": ["*"],
-                "allow_origin_regex": None,
+                "allow_origins": [],
+                "allow_origin_regex": any_http_origin_regex,
                 "allow_credentials": False,
             }
 
@@ -52,20 +53,20 @@ def _resolve_cors_settings() -> dict[str, object]:
                 "allow_credentials": True,
             }
 
-    # Permitir todas as origens por padrão quando NÃO config urado explicitamente
-    # Isto permite que a API funcione online em qualquer plataforma sem configuração adicional
+    # Permite acesso web amplo por padrão sem exigir cookies/credenciais de navegador.
+    # Isso evita combinações inválidas de CORS no browser e mantém a API acessível online.
     allow_all = os.getenv("NOVA_API_CORS_ALLOW_ALL", "1").strip().lower() in {
         "1",
         "true",
         "on",
         "yes",
     }
-    
+
     if allow_all:
         return {
-            "allow_origins": ["*"],
-            "allow_origin_regex": None,
-            "allow_credentials": True,
+            "allow_origins": [],
+            "allow_origin_regex": any_http_origin_regex,
+            "allow_credentials": False,
         }
 
     return {

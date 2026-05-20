@@ -60,6 +60,7 @@ class ChatApiService {
   }
 
   static const Duration _requestTimeout = Duration(seconds: 18);
+  static const Duration _healthProbeTimeout = Duration(seconds: 4);
 
   ApiEndpointConfig _endpoint;
   String _apiToken;
@@ -119,28 +120,31 @@ class ChatApiService {
     Uri uri, {
     required Map<String, String> headers,
     String? encodedBody,
+    Duration timeout = _requestTimeout,
   }) {
+    late final Future<http.Response> request;
     if (_httpExecutor != null) {
-      return _httpExecutor!(
+      request = _httpExecutor!(
         method,
         uri,
         headers: headers,
         encodedBody: encodedBody,
       );
+      return request.timeout(timeout);
     }
     switch (method) {
       case 'GET':
-        return http.get(uri, headers: headers).timeout(_requestTimeout);
+        request = http.get(uri, headers: headers);
+        return request.timeout(timeout);
       case 'POST':
-        return http
-            .post(uri, headers: headers, body: encodedBody)
-            .timeout(_requestTimeout);
+        request = http.post(uri, headers: headers, body: encodedBody);
+        return request.timeout(timeout);
       case 'PUT':
-        return http
-            .put(uri, headers: headers, body: encodedBody)
-            .timeout(_requestTimeout);
+        request = http.put(uri, headers: headers, body: encodedBody);
+        return request.timeout(timeout);
       case 'DELETE':
-        return http.delete(uri, headers: headers).timeout(_requestTimeout);
+        request = http.delete(uri, headers: headers);
+        return request.timeout(timeout);
       default:
         throw Exception('Metodo HTTP nao suportado: $method');
     }
@@ -262,6 +266,7 @@ class ChatApiService {
     String path, {
     Map<String, dynamic>? body,
     bool allowPathFallback = true,
+    Duration timeout = _requestTimeout,
   }) async {
     final normalizedBaseUrl = ApiEndpointConfig.normalizeBaseUrl(baseUrl);
     final encoded = body == null ? null : jsonEncode(body);
@@ -283,6 +288,7 @@ class ChatApiService {
           uri,
           headers: headers,
           encodedBody: encoded,
+          timeout: timeout,
         );
       } on TimeoutException {
         throw Exception(
@@ -387,6 +393,7 @@ class ChatApiService {
           'GET',
           path,
           allowPathFallback: false,
+          timeout: _healthProbeTimeout,
         );
 
         if (_looksHealthyPayload(payload)) {

@@ -235,6 +235,30 @@ class ApiAuthContractTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["access-control-allow-origin"], "https://app.example.com")
 
+    def test_cors_wildcard_env_accepts_public_origin_without_browser_credentials(self) -> None:
+        env = {
+            "NOVA_API_TOKEN": "contrato-token",
+            "NOVA_API_TOKENS": "",
+            "NOVA_API_CORS_ORIGINS": "*",
+        }
+
+        with patch.dict(os.environ, env, clear=False), TestClient(create_app()) as client:
+            response = client.options(
+                "/voice/status",
+                headers={
+                    "Origin": "https://mobile.example.com",
+                    "Access-Control-Request-Method": "GET",
+                    "Access-Control-Request-Headers": "authorization,x-api-key",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers["access-control-allow-origin"],
+            "https://mobile.example.com",
+        )
+        self.assertNotIn("access-control-allow-credentials", response.headers)
+
 
 if __name__ == "__main__":
     unittest.main()

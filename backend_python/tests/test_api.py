@@ -72,6 +72,7 @@ class ApiSmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["access-control-allow-origin"], "http://localhost:3000")
         self.assertIn("GET", response.headers["access-control-allow-methods"])
+        self.assertNotIn("access-control-allow-credentials", response.headers)
 
     def test_cors_preflight_accepts_private_lan_origin_by_default(self) -> None:
         response = self.client.options(
@@ -88,6 +89,26 @@ class ApiSmokeTests(unittest.TestCase):
             "http://192.168.0.114:3000",
         )
         self.assertIn("POST", response.headers["access-control-allow-methods"])
+        self.assertNotIn("access-control-allow-credentials", response.headers)
+
+    def test_cors_preflight_accepts_public_https_origin_by_default(self) -> None:
+        response = self.client.options(
+            "/voice/status",
+            headers={
+                "Origin": "https://app.example.com",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "authorization,x-api-key,content-type",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers["access-control-allow-origin"],
+            "https://app.example.com",
+        )
+        self.assertIn("POST", response.headers["access-control-allow-methods"])
+        self.assertIn("Authorization", response.headers["access-control-allow-headers"])
+        self.assertNotIn("access-control-allow-credentials", response.headers)
 
     def test_chat_dev_mode_gera_codigo_e_ignora_confirmacao_pendente(self) -> None:
         chat_routes._PENDING_STRUCTURED_CHAT["default"] = {

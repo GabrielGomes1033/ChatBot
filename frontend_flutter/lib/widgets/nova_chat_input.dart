@@ -30,6 +30,8 @@ class NovaChatInput extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.novaColors;
+    final textScale =
+        MediaQuery.textScalerOf(context).scale(1.0).clamp(1.0, 1.35);
     final controlSize = compact ? 40.0 : 46.0;
     final sendSize = compact ? 52.0 : 58.0;
     final hasAttachment =
@@ -87,9 +89,10 @@ class NovaChatInput extends StatelessWidget {
       return Container(
         width: double.infinity,
         constraints: BoxConstraints(
-          minHeight: compact ? 56 : 62,
-          maxHeight:
-              hasAttachment ? (compact ? 150 : 168) : (compact ? 104 : 118),
+          minHeight: (compact ? 56.0 : 62.0) * textScale,
+          maxHeight: hasAttachment
+              ? (compact ? 156.0 : 172.0) * textScale
+              : (compact ? 112.0 : 124.0) * textScale,
         ),
         padding: EdgeInsets.fromLTRB(
           compact ? 14 : 16,
@@ -122,7 +125,7 @@ class NovaChatInput extends StatelessWidget {
                   ),
                 ),
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisSize: MainAxisSize.max,
                   children: [
                     Icon(
                       Icons.insert_drive_file_outlined,
@@ -130,9 +133,10 @@ class NovaChatInput extends StatelessWidget {
                       color: colors.primary,
                     ),
                     const SizedBox(width: 8),
-                    Flexible(
+                    Expanded(
                       child: Text(
                         attachmentName!,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: colors.textPrimary,
