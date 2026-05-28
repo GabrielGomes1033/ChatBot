@@ -244,7 +244,8 @@ void main() {
     expect(session.email, 'gabriel@example.com');
   });
 
-  test('registerUser usa alias /api/auth/register quando /auth/register retorna 404',
+  test(
+      'registerUser usa alias /api/auth/register quando /auth/register retorna 404',
       () async {
     final calls = <String>[];
 
